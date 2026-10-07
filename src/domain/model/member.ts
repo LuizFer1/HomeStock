@@ -40,7 +40,7 @@ export function isPhotoDataUrl(value: string | null): value is string {
 export function normalizeMemberDraft(draft: MemberDraft): MemberDraft {
   const name = draft.name.trim();
   if (name === "") throw new Error("Informe seu nome.");
-  if (name.length > MAX_MEMBER_NAME) throw new Error("Use até 40 letras no nome.");
+  if (name.length > MAX_MEMBER_NAME) throw new Error(`Use até ${MAX_MEMBER_NAME} letras no nome.`);
   if (!MEMBER_COLORS.includes(draft.color)) throw new Error("Cor desconhecida.");
   if (draft.photo !== null && !isPhotoDataUrl(draft.photo)) {
     throw new Error("Formato de foto não aceito.");

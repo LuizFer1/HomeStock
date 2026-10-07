@@ -335,7 +335,8 @@ export async function openRepository(deps: RepositoryDeps) {
           name: member.name,
           color: member.color,
           photo: member.photo,
-          ...patch,
+          // undefined significa "inalterado", nao "apague o campo".
+          ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)),
         });
         const next = touched(member, await stamp(), clean);
         await db.members.put(next);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compareHlc } from "../domain/clock/hlc";
 import { DEFAULT_CATEGORY_ID, SEED_HLC } from "../domain/defaults/seeds";
-import { prefId } from "../domain/model/prefs";
+import { prefId, prefsFrom } from "../domain/model/prefs";
 import { quantityOf } from "../domain/projections/stock";
 import { lastPriceOf } from "../domain/projections/value";
 import { cafe, openTestDb, openTestRepository, TEST_MEMBER_ID } from "./test-db.fake";
@@ -198,6 +198,14 @@ describe("morador local", () => {
     expect(await db.members.count()).toBe(0);
   });
 
+  it("updateMember trata undefined como inalterado", async () => {
+    const { repo } = await openTestRepository();
+    const photo = "data:image/webp;base64,AAAA";
+    const member = await repo.createLocalMember({ name: "Ana", color: "salvia", photo });
+    const next = await repo.updateMember(member.id, { photo: undefined, name: "Rafa" });
+    expect(next).toMatchObject({ name: "Rafa", photo });
+  });
+
   it("updateMember muda a cor, mantem o nome e carimba", async () => {
     const { repo } = await openTestRepository();
     const member = await repo.createLocalMember({ name: "Ana", color: "salvia", photo: null });
@@ -208,6 +216,15 @@ describe("morador local", () => {
 });
 
 describe("preferencias", () => {
+  it("setPref revive linha apagada", async () => {
+    const { db, repo } = await openTestRepository();
+    const row = await repo.setPref("alertLow", true);
+    await db.prefs.put({ ...row, deletedAt: row.updatedAt });
+    await repo.setPref("alertLow", false);
+    expect((await db.prefs.get(row.id))?.deletedAt).toBeNull();
+    expect(prefsFrom((await repo.snapshot()).prefs).alertLow).toBe(false);
+  });
+
   it("setPref cria a linha e a segunda chamada carimba a mesma", async () => {
     const { db, repo } = await openTestRepository();
     const first = await repo.setPref("alertLow", false);
@@ -219,7 +236,8 @@ describe("preferencias", () => {
   });
 
   it("setPref rejeita valor invalido", async () => {
-    const { repo } = await openTestRepository();
+    const { db, repo } = await openTestRepository();
     await expect(repo.setPref("expiringDays", 0)).rejects.toThrow();
+    expect(await db.prefs.count()).toBe(0);
   });
 });
