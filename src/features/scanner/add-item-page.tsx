@@ -1,6 +1,6 @@
 import { ScanBarcode } from "lucide-preact";
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useId, useState } from "preact/hooks";
 import type { AppContext } from "../../app-context";
 import type { Ulid } from "../../domain/ids/ulid";
 import { isAlive } from "../../domain/model/base";
@@ -16,7 +16,7 @@ export interface AddItemPageProps {
 }
 
 /** Pilula "Código {ean}": sem ela, a camera some e nada visivel diz o que aconteceu. */
-function NewCodeNote({ ean }: { ean: string }) {
+function NewCodeNote({ ean, textId }: { ean: string; textId: string }) {
   return (
     <div
       role="status"
@@ -28,7 +28,7 @@ function NewCodeNote({ ean }: { ean: string }) {
       >
         <ScanBarcode size={18} strokeWidth={2.75} />
       </span>
-      <div class="min-w-0">
+      <div id={textId} class="min-w-0">
         <p class="font-semibold text-[13px] text-text">Código {ean}</p>
         <p class="text-[11px] text-neutral-700">Item novo · preencha o nome</p>
       </div>
@@ -49,6 +49,7 @@ export function AddItemPage({ ctx, kind }: AddItemPageProps): JSX.Element {
   // Conta as leituras da camera: o mesmo codigo lido de novo ainda e uma leitura nova
   // (preenche o campo de novo ou recomeca a reposicao).
   const [scanSeq, setScanSeq] = useState(0);
+  const noteId = useId();
 
   // A busca e sincrona sobre o snapshot em memoria: nao ha resposta atrasada a ignorar.
   function handleCode(ean: string, source: "camera" | "typed") {
@@ -61,11 +62,13 @@ export function AddItemPage({ ctx, kind }: AddItemPageProps): JSX.Element {
       setScanned(null);
       return;
     }
-    // Codigo digitado e desconhecido ja esta no campo: nao ha o que fazer.
     if (source === "camera") {
       setFoundId(null);
       setScanned(ean);
+      return;
     }
+    // Codigo digitado e desconhecido ja esta no campo; so a nota de outra leitura sai.
+    if (ean !== scanned) setScanned(null);
   }
 
   // Apagado (aqui ou no sync) com a reposicao aberta: volta ao criar.
@@ -73,6 +76,12 @@ export function AddItemPage({ ctx, kind }: AddItemPageProps): JSX.Element {
     foundId === null
       ? null
       : (session.data.value.items.find((i) => i.id === foundId && isAlive(i)) ?? null);
+
+  // Esquece o achado que sumiu: devolvido depois (desfazer, sync), nao reabre a
+  // reposicao por cima do que a pessoa ja comecou a criar.
+  useEffect(() => {
+    if (foundId !== null && found === null) setFoundId(null);
+  }, [foundId, found]);
 
   const scanView = (autoStart: boolean) => (
     <ScanView
@@ -104,11 +113,12 @@ export function AddItemPage({ ctx, kind }: AddItemPageProps): JSX.Element {
       top={
         <>
           {scanView(kind === "scan" && !readOnce)}
-          {scanned !== null && <NewCodeNote ean={scanned} />}
+          {scanned !== null && <NewCodeNote ean={scanned} textId={noteId} />}
         </>
       }
       scannedEan={scanned}
       scanSeq={scanSeq}
+      nameDescribedBy={scanned !== null ? noteId : undefined}
       onEanCommit={(ean) => handleCode(ean, "typed")}
       initialFocus={kind === "scan" && !readOnce ? "heading" : "name"}
     />

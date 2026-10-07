@@ -6,6 +6,8 @@ import type { Draft } from "../../domain/model/base";
 import { isAlive } from "../../domain/model/base";
 import type { Item } from "../../domain/model/item";
 import { cafe } from "../../domain/model/item.fake";
+import { createItemStore, type ItemStore } from "../item/store";
+import type { Session } from "../session/session";
 import { ANA, openTestSession } from "../session/test-session.fake";
 import { AddItemPage } from "./add-item-page";
 import { type FakeScanner, fakeScanner } from "./scanner.fake";
@@ -23,6 +25,8 @@ interface SetupOptions {
   codes?: string[];
   /** false: testContext padrao, sem camera. */
   camera?: boolean;
+  /** Troca comandos do ItemStore real. */
+  items?: (session: Session) => Partial<ItemStore>;
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -33,16 +37,26 @@ async function setup(options: SetupOptions = {}) {
       : await session.run((repo) => repo.createItem(cafe(options.draft ?? {}), 2));
   const fake: FakeScanner = fakeScanner();
   fake.codes.push(...(options.codes ?? []));
-  const { ctx } = testContext(session, options.camera === false ? {} : { scanner: fake.env });
+  const items = { ...createItemStore(session), ...options.items?.(session) };
+  const { ctx, history } = testContext(session, {
+    items,
+    ...(options.camera === false ? {} : { scanner: fake.env }),
+  });
   const kind = options.kind ?? "scan";
   ctx.router.push({ kind });
   const view = render(<AddItemPage ctx={ctx} kind={kind} />);
   const alive = () => session.data.value.items.filter((i) => isAlive(i));
-  return { session, ctx, fake, item, view, alive };
+  return { session, ctx, history, fake, item, view, alive };
 }
 
 function field(label: string): HTMLInputElement {
   return screen.getByLabelText(label) as HTMLInputElement;
+}
+
+/** Texto dos elementos que `aria-describedby` aponta. */
+function description(el: Element): string {
+  const ids = el.getAttribute("aria-describedby")?.split(/\s+/) ?? [];
+  return ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
 }
 
 function heading(): HTMLElement {
@@ -160,5 +174,86 @@ describe("AddItemPage", () => {
     await waitFor(() => expect(screen.queryByText(/Achamos!/)).toBeNull());
     expect(field("Nome")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ler outro código" })).toBeTruthy();
+  });
+
+  it("o titulo focado descreve o achado para o leitor de tela", async () => {
+    await setup({ codes: [KNOWN] });
+    await found();
+    expect(description(heading())).toContain("Achamos! Café em grãos Torrado 1 kg");
+    expect(description(heading())).toContain("Já existe no estoque · vamos somar");
+  });
+
+  it("o Nome focado descreve o codigo novo para o leitor de tela", async () => {
+    await setup({ draft: null, codes: [UNKNOWN] });
+    await waitFor(() => expect(field("Código de barras").value).toBe(UNKNOWN));
+    expect(description(field("Nome"))).toContain(`Código ${UNKNOWN}`);
+    expect(description(field("Nome"))).toContain("Item novo · preencha o nome");
+  });
+
+  it("sem codigo lido o Nome nao tem descricao", async () => {
+    await setup({ kind: "item-new" });
+    expect(field("Nome").hasAttribute("aria-describedby")).toBe(false);
+  });
+
+  it("codigo digitado diferente do lido tira a nota velha", async () => {
+    await setup({ draft: null, codes: [UNKNOWN] });
+    // O efeito do codigo lido roda depois do desenho: espera o campo, nao so a nota.
+    await waitFor(() => expect(field("Código de barras").value).toBe(UNKNOWN));
+    expect(screen.getByText(`Código ${UNKNOWN}`)).toBeTruthy();
+    fireEvent.input(field("Código de barras"), { target: { value: "78912345" } });
+    fireEvent.change(field("Código de barras"), { target: { value: "78912345" } });
+    expect(screen.queryByText(`Código ${UNKNOWN}`)).toBeNull();
+    expect(field("Nome").hasAttribute("aria-describedby")).toBe(false);
+    expect(field("Código de barras").value).toBe("78912345");
+  });
+
+  it("codigo digitado igual ao lido mantem a nota", async () => {
+    await setup({ draft: null, codes: [UNKNOWN] });
+    // O efeito do codigo lido roda depois do desenho: espera o campo, nao so a nota.
+    await waitFor(() => expect(field("Código de barras").value).toBe(UNKNOWN));
+    expect(screen.getByText(`Código ${UNKNOWN}`)).toBeTruthy();
+    fireEvent.change(field("Código de barras"), { target: { value: UNKNOWN } });
+    expect(screen.getByText(`Código ${UNKNOWN}`)).toBeTruthy();
+  });
+
+  it("item achado apagado e devolvido nao reabre a reposicao", async () => {
+    const { session, item } = await setup({ codes: [KNOWN] });
+    await found();
+    await act(async () => {
+      await session.run((repo) => repo.deleteItem(item?.id ?? ""));
+    });
+    await waitFor(() => expect(screen.queryByText(/Achamos!/)).toBeNull());
+    await act(async () => {
+      await session.run((repo) => repo.restoreItem(item?.id ?? ""));
+    });
+    await waitFor(() =>
+      expect(session.data.value.items.find((i) => i.id === item?.id)?.deletedAt).toBeNull(),
+    );
+    expect(screen.queryByText(/Achamos!/)).toBeNull();
+    expect(field("Nome")).toBeTruthy();
+  });
+
+  it("criar que termina depois da troca para a reposicao nao fecha a tela", async () => {
+    let finish: (item: Item) => void = () => {};
+    const { ctx, history, fake } = await setup({
+      kind: "item-new",
+      items: () => ({
+        create: () =>
+          new Promise<Item>((resolve) => {
+            finish = resolve;
+          }),
+      }),
+    });
+    fireEvent.input(field("Nome"), { target: { value: "Arroz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar 1 un" }));
+    fake.codes.push(KNOWN);
+    fireEvent.click(screen.getByRole("button", { name: "Ler código" }));
+    await found();
+    await act(async () => {
+      finish({ name: "Arroz" } as Item);
+    });
+    expect(history.back).not.toHaveBeenCalled();
+    expect(ctx.router.stack.value.map((s) => s.kind)).toEqual(["item-new"]);
+    expect(await screen.findByText("Achamos! Café em grãos Torrado 1 kg")).toBeTruthy();
   });
 });

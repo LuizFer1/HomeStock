@@ -38,6 +38,8 @@ export interface ItemFormProps {
   scannedEan?: string | null;
   /** Conta as leituras: o mesmo codigo lido de novo ainda preenche o campo e foca o Nome. */
   scanSeq?: number;
+  /** Id do texto que descreve o Nome (a nota de codigo novo): o leitor de tela o le ao focar. */
+  nameDescribedBy?: string;
   /** Codigo de 8 a 14 digitos confirmado no campo (change: blur ou Enter). */
   onEanCommit?: (ean: string) => void;
   /** Criar: "name" (padrao) ou "heading" (camera abrindo: o teclado cobriria o visor). */
@@ -163,6 +165,7 @@ export function ItemForm({
   top,
   scannedEan,
   scanSeq,
+  nameDescribedBy,
   onEanCommit,
   initialFocus,
   screenKind,
@@ -208,6 +211,9 @@ export function ItemForm({
 
   // Ref e nao estado: dois toques no mesmo render leem o mesmo `busy` velho.
   const submitting = useRef(false);
+  // A pagina do scanner pode trocar o formulario pela reposicao durante a gravacao:
+  // a tela nao fecha por baixo dela.
+  const mounted = useRef(true);
   // Escolher de novo ou "Remover foto" invalida a escolha em voo.
   const pickTicket = useRef(0);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -227,6 +233,9 @@ export function ItemForm({
     // Com a camera abrindo, o teclado cobriria o visor: o foco vai ao titulo.
     if (create && initialFocus !== "heading") document.getElementById(nameId)?.focus();
     else heading.current?.focus();
+    return () => {
+      mounted.current = false;
+    };
   }, []);
 
   // Depois do foco inicial: codigo lido preenche o campo e o foco segue para o Nome.
@@ -305,9 +314,10 @@ export function ItemForm({
         await items.save(id, draft, qty === initial.qty ? null : qty);
       }
       // A tela sai: a trava fica fechada para um toque perdido nao gravar de novo.
-      closeIfStill(router, depth, kind);
+      if (mounted.current) closeIfStill(router, depth, kind);
     } catch (cause) {
       submitting.current = false;
+      if (!mounted.current) return;
       setBusy(false);
       setError(describeError(cause));
       setFailures((n) => n + 1);
@@ -398,6 +408,7 @@ export function ItemForm({
           <TextField
             dense
             id={nameId}
+            aria-describedby={nameDescribedBy}
             maxLength={MAX_ITEM_NAME}
             value={name}
             onInput={(event) => setName(event.currentTarget.value)}

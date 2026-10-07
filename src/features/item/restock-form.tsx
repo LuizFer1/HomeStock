@@ -48,6 +48,7 @@ export function RestockForm({ ctx, item, top, screenKind }: RestockFormProps): J
   const errorBox = useRef<HTMLDivElement>(null);
   const expiresId = useId();
   const priceId = useId();
+  const bannerId = useId();
 
   useEffect(() => {
     // O visor ou o campo de onde veio o codigo deu lugar a reposicao: o foco vai ao titulo.
@@ -95,7 +96,8 @@ export function RestockForm({ ctx, item, top, screenKind }: RestockFormProps): J
   return (
     <main class="min-h-dvh bg-bg px-[22px] pt-11 pb-6">
       <div class="flex items-center justify-between">
-        <h1 ref={heading} tabIndex={-1} class="text-[26px]">
+        {/* O foco vem ao titulo: a descricao faz o leitor de tela dizer o que foi achado. */}
+        <h1 ref={heading} tabIndex={-1} aria-describedby={bannerId} class="text-[26px]">
           Novo item
         </h1>
         <IconButton label="Fechar" onClick={router.back}>
@@ -115,7 +117,7 @@ export function RestockForm({ ctx, item, top, screenKind }: RestockFormProps): J
         >
           <Check size={18} strokeWidth={2.75} />
         </span>
-        <div class="min-w-0">
+        <div id={bannerId} class="min-w-0">
           <p class="font-semibold text-[13px] text-accent-2-900">
             {size === "" ? `Achamos! ${item.name}` : `Achamos! ${item.name} ${size}`}
           </p>

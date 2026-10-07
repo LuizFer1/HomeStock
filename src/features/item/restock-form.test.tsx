@@ -65,6 +65,15 @@ describe("RestockForm", () => {
     expect(screen.getByText("Visor")).toBeTruthy();
   });
 
+  it("o titulo e descrito pelo texto do banner", async () => {
+    await setup();
+    const h1 = screen.getByRole("heading", { level: 1, name: "Novo item" });
+    const id = h1.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(id)?.textContent).toBe(
+      "Achamos! Café em grãos Torrado 1 kgJá existe no estoque · vamos somar",
+    );
+  });
+
   it("banner sem tamanho mostra so o nome", async () => {
     await setup({ draft: { size: "" } });
     expect(banner().textContent).toContain("Achamos! Café em grãosJá existe");
