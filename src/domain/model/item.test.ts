@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cafe } from "../../data/test-db.fake";
 import { normalizeItemDraft } from "./item";
+import { cafe } from "./item.fake";
 
 describe("normalizeItemDraft", () => {
   it("aceita o rascunho valido sem mudar nada", () => {
@@ -80,6 +80,36 @@ describe("normalizeItemDraft", () => {
     expect(normalizeItemDraft(cafe({ photo: "data:image/webp;base64,AAA" })).photo).toBe(
       "data:image/webp;base64,AAA",
     );
+  });
+
+  it("trata ano bissexto na validade", () => {
+    expect(normalizeItemDraft(cafe({ expiresAt: "2024-02-29" })).expiresAt).toBe("2024-02-29");
+    expect(() => normalizeItemDraft(cafe({ expiresAt: "2025-02-29" }))).toThrow(
+      "Data de validade inválida.",
+    );
+  });
+
+  it("recusa NaN em minimo e compra usual", () => {
+    expect(() => normalizeItemDraft(cafe({ min: Number.NaN }))).toThrow("O mínimo vai de 0 a 999.");
+    expect(() => normalizeItemDraft(cafe({ usualQty: Number.NaN }))).toThrow(
+      "A compra usual vai de 1 a 999.",
+    );
+  });
+
+  it("recusa EAN com hifen", () => {
+    expect(() => normalizeItemDraft(cafe({ ean: "789-1234-5678-90" }))).toThrow(
+      "O código de barras tem de 8 a 14 dígitos.",
+    );
+  });
+
+  it("aceita os limites de minimo e compra usual", () => {
+    expect(normalizeItemDraft(cafe({ min: 999 })).min).toBe(999);
+    expect(normalizeItemDraft(cafe({ usualQty: 1 })).usualQty).toBe(1);
+    expect(normalizeItemDraft(cafe({ usualQty: 999 })).usualQty).toBe(999);
+  });
+
+  it("mantem um local real", () => {
+    expect(normalizeItemDraft(cafe({ locationId: "LOC1" })).locationId).toBe("LOC1");
   });
 
   it("nao muta o rascunho", () => {

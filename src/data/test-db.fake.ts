@@ -1,8 +1,7 @@
 import "fake-indexeddb/auto";
-import { DEFAULT_CATEGORY_ID } from "../domain/defaults/seeds";
 import type { RandomChunk } from "../domain/ids/ulid";
 import { HomeStockDb } from "./db";
-import { type ItemDraft, openRepository, type RepositoryDeps } from "./repository";
+import { openRepository, type RepositoryDeps } from "./repository";
 
 /**
  * Banco real sobre `fake-indexeddb`, um nome por chamada para as suites nao se
@@ -53,18 +52,5 @@ export async function openTestRepository(
   return { db, repo };
 }
 
-export function cafe(overrides: Partial<ItemDraft> = {}): ItemDraft {
-  return {
-    name: "Café em grãos",
-    size: "Torrado 1 kg",
-    unit: "pct",
-    categoryId: DEFAULT_CATEGORY_ID,
-    locationId: null,
-    min: 2,
-    usualQty: 3,
-    expiresAt: null,
-    ean: "7891234567890",
-    photo: null,
-    ...overrides,
-  };
-}
+/** A fixture mora no dominio, sem Dexie; reexportada para os testes de dados. */
+export { cafe } from "../domain/model/item.fake";
