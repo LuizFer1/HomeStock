@@ -151,3 +151,78 @@ describe("como funciona", () => {
     ]);
   });
 });
+
+describe("para dividir", () => {
+  const doc = loadLanding();
+  const casa = doc.querySelector("section#casa");
+
+  it("titulo, tags e dica", () => {
+    expect(casa?.getAttribute("aria-labelledby")).toBe("casa-titulo");
+    expect(textOf(doc.getElementById("casa-titulo"))).toBe(
+      "Cada um com sua cor, todo mundo na mesma lista.",
+    );
+    const tags = [...(casa?.querySelectorAll(".casa-tags .tag") ?? [])].map((t) => textOf(t));
+    expect(tags).toEqual(["Casais", "Repúblicas", "Famílias"]);
+  });
+
+  it("cinco itens que sao botoes de alternar", () => {
+    const names = [...(casa?.querySelectorAll("button[data-list-item] .shop-name") ?? [])].map(
+      (n) => textOf(n),
+    );
+    expect(names).toEqual([
+      "Sabão em pó 1,6 kg",
+      "Café em grãos 1 kg",
+      "Leite integral 1 L",
+      "Banana prata",
+      "Esponja de louça",
+    ]);
+  });
+});
+
+describe("baixar", () => {
+  const doc = loadLanding();
+  const baixar = doc.querySelector("section#baixar");
+
+  it("titulo e os mesmos CTAs do hero", () => {
+    expect(textOf(doc.getElementById("baixar-titulo"))).toBe(
+      "Comece pela despensa. O resto vem junto.",
+    );
+    expect(baixar?.querySelector('.cta-col button[data-install="ios"]')).not.toBeNull();
+    expect(baixar?.querySelector('.cta-col button[data-install="android"]')).not.toBeNull();
+    expect(baixar?.querySelector(".cta-col a[data-browser]")?.getAttribute("href")).toBe("app/");
+    expect(baixar?.querySelector(".cta-col a[data-open-app]")?.getAttribute("href")).toBe("app/");
+  });
+});
+
+describe("faixa do cafe", () => {
+  const doc = loadLanding();
+
+  it("titulo e botao que abre o dialogo", () => {
+    expect(textOf(doc.getElementById("cafe-titulo"))).toBe("O HomeStock é gratuito.");
+    expect(textOf(doc.querySelector("section.cafe button[data-coffee-open]"))).toBe("Doe um café");
+  });
+});
+
+describe("rodape", () => {
+  const doc = loadLanding();
+
+  it("links reais, sem ancora morta", () => {
+    const links = [...doc.querySelectorAll('footer nav[aria-label="Rodapé"] a')].map((a) => [
+      textOf(a),
+      a.getAttribute("href"),
+    ]);
+    expect(links).toEqual([
+      ["Como funciona", "#como"],
+      ["Privacidade", "#privacidade"],
+      ["Contato", "https://github.com/LuizFer1/HomeStock/issues"],
+      ["GitHub", "https://github.com/LuizFer1/HomeStock"],
+    ]);
+    for (const [, href] of links) {
+      if (href?.startsWith("#")) expect(doc.getElementById(href.slice(1)), href).not.toBeNull();
+    }
+  });
+
+  it("a nota de privacidade diz o que o produto faz", () => {
+    expect(textOf(doc.getElementById("privacidade"))).toMatch(/fica só no seu aparelho/);
+  });
+});
