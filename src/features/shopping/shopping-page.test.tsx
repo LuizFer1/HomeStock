@@ -329,7 +329,7 @@ describe("ShoppingPage", () => {
     expect(await screen.findByText("2 pct · Abaixo do mínimo")).toBeTruthy();
     expect(
       screen.getByRole("button", {
-        name: (n) => n.replaceAll(" ", " ") === "Ajustar Café em grãos Torrado 1 kg, R$ 85,80",
+        name: (n) => n.replaceAll("\u00a0", " ") === "Ajustar Café em grãos Torrado 1 kg, R$ 85,80",
       }),
     ).toBeTruthy();
     expect(screen.getByText("R$ 85,80", { selector: "p" })).toBeTruthy();
@@ -385,5 +385,32 @@ describe("ShoppingPage", () => {
         screen.getByRole("heading", { level: 1, name: "Compras" }),
       ),
     );
+  });
+
+  it("enquanto o repor grava, os botoes Ajustar ficam desabilitados", async () => {
+    const { ctx } = await setup(seedCafeSabao);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const checkout = ctx.shopping.checkout;
+    ctx.shopping.checkout = async (list) => {
+      await gate;
+      return checkout(list);
+    };
+    fireEvent.click(screen.getByRole("checkbox", { name: CAFE }));
+    await waitFor(() => expect(repor().disabled).toBe(false));
+    fireEvent.click(repor());
+    await waitFor(() => expect(repor().disabled).toBe(true));
+    const adjust = screen.getAllByRole("button", { name: /^Ajustar / });
+    expect(adjust.length).toBeGreaterThan(0);
+    for (const button of adjust) expect((button as HTMLButtonElement).disabled).toBe(true);
+    release();
+    expect(await screen.findByText("Guardou 3 pct de Café em grãos")).toBeTruthy();
+    await waitFor(() => {
+      for (const button of screen.getAllByRole("button", { name: /^Ajustar / })) {
+        expect((button as HTMLButtonElement).disabled).toBe(false);
+      }
+    });
   });
 });

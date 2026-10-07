@@ -215,6 +215,37 @@ export async function openRepository(deps: RepositoryDeps) {
     });
   }
 
+  /**
+   * Apaga a linha so se estiver viva: tirar duas vezes (outra tela, outro aparelho)
+   * nao pode contar como sucesso nem gerar um desfazer. A mensagem aparece na tela.
+   */
+  async function removeAlive<T extends BaseRow>(
+    table: Table<T, string>,
+    id: Ulid,
+    gone: string,
+  ): Promise<T> {
+    return db.transaction("rw", table, db.meta, async () => {
+      const row = await table.get(id);
+      if (!isAlive(row)) throw new Error(gone);
+      const s = await stamp();
+      const dead = touched(row, s, { deletedAt: s.hlc } as Partial<T>);
+      await table.put(dead);
+      return dead;
+    });
+  }
+
+  /** Revive a linha apagada; viva (ja refeita por outra escrita) fica como esta. */
+  async function reviveDead<T extends BaseRow>(table: Table<T, string>, id: Ulid): Promise<T> {
+    return db.transaction("rw", table, db.meta, async () => {
+      const row = await table.get(id);
+      if (row === undefined) throw new Error(`Linha ${id} nao existe`);
+      if (isAlive(row)) return row;
+      const next = touched(row, await stamp(), { deletedAt: null } as Partial<T>);
+      await table.put(next);
+      return next;
+    });
+  }
+
   /** Linha da marca pronta para o patch: viva como esta, ou revivida com os padroes. */
   async function markBase(itemId: Ulid, s: Stamp): Promise<ListMark> {
     const row = await db.listMarks.get(listMarkId(itemId));
@@ -464,8 +495,10 @@ export async function openRepository(deps: RepositoryDeps) {
     },
 
     /** Tirar da lista: todas as anotacoes da marca saem junto. */
-    unpinItem: (itemId: Ulid) => setDeleted(db.listMarks, listMarkId(itemId), true),
-    restoreItemMark: (itemId: Ulid) => setDeleted(db.listMarks, listMarkId(itemId), false),
+    // A linha apagada guarda `pinned` e as demais anotacoes: reviver devolve tudo, a fixacao inclusive.
+    unpinItem: (itemId: Ulid) =>
+      removeAlive(db.listMarks, listMarkId(itemId), "Esse item já saiu da lista."),
+    restoreItemMark: (itemId: Ulid) => reviveDead(db.listMarks, listMarkId(itemId)),
 
     /**
      * Repor estoque: um restock por item vivo, preco so quando digitado, marcas
@@ -495,11 +528,14 @@ export async function openRepository(deps: RepositoryDeps) {
           if (!isAlive(await db.items.get(line.itemId))) continue;
           const mark = await db.listMarks.get(listMarkId(line.itemId));
           if (!isAlive(mark) || mark.checked !== 1) continue;
-          const movement = await addMovement(line.itemId, line.qty, "restock", s);
+          // Quantidade e preco vem da marca no banco: um ajuste que gravou depois de a tela
+          // montar a lista vale mais que o que a tela viu.
+          const qty = mark.qty ?? line.qty;
+          const movement = await addMovement(line.itemId, qty, "restock", s);
           receipt.itemIds.push(line.itemId);
           receipt.movementIds.push(movement.id);
-          if (line.unitPriceMinor !== null) {
-            await addPrice(line.itemId, movement, line.unitPriceMinor, line.qty, s);
+          if (mark.priceMinor !== null) {
+            await addPrice(line.itemId, movement, mark.priceMinor, qty, s);
           }
           const cleared = await clearMark(line.itemId, s);
           if (cleared !== null) receipt.markIds.push(cleared.id);
@@ -587,8 +623,8 @@ export async function openRepository(deps: RepositoryDeps) {
       });
     },
 
-    removeListExtra: (id: Ulid) => setDeleted(db.listExtras, id, true),
-    restoreListExtra: (id: Ulid) => setDeleted(db.listExtras, id, false),
+    removeListExtra: (id: Ulid) => removeAlive(db.listExtras, id, "Esse pedido já saiu da lista."),
+    restoreListExtra: (id: Ulid) => reviveDead(db.listExtras, id),
 
     async upsertCategory(name: string, id?: Ulid): Promise<Category> {
       return upsertNamed(db.categories, name, id);

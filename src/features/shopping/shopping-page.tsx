@@ -38,11 +38,21 @@ interface SectionProps {
   members: readonly Member[];
   onToggle: (entry: ShoppingEntry) => void;
   onAdjust: (entry: ShoppingEntry) => void;
+  adjustDisabled: boolean;
   /** Depois das linhas (o campo de pedido). */
   children?: ComponentChildren;
 }
 
-function Section({ title, tone, entries, members, onToggle, onAdjust, children }: SectionProps) {
+function Section({
+  title,
+  tone,
+  entries,
+  members,
+  onToggle,
+  onAdjust,
+  adjustDisabled,
+  children,
+}: SectionProps) {
   const id = useId();
   return (
     <section aria-labelledby={id}>
@@ -61,6 +71,7 @@ function Section({ title, tone, entries, members, onToggle, onAdjust, children }
               meta={entryMeta(entry, members)}
               onToggle={() => onToggle(entry)}
               onAdjust={() => onAdjust(entry)}
+              adjustDisabled={adjustDisabled}
             />
           ))}
         </div>
@@ -241,6 +252,7 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
             members={data.members}
             onToggle={onToggle}
             onAdjust={(e) => setAdjustingKey(e.key)}
+            adjustDisabled={busy}
           />
         )}
         <Section
@@ -250,6 +262,7 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
           members={data.members}
           onToggle={onToggle}
           onAdjust={(e) => setAdjustingKey(e.key)}
+          adjustDisabled={busy}
         >
           <ExtraField ctx={ctx} />
         </Section>

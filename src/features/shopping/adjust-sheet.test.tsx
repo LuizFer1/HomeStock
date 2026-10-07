@@ -13,7 +13,7 @@ import { AdjustSheet } from "./adjust-sheet";
 
 afterEach(cleanup);
 
-const plain = (text: string | null) => (text ?? "").replaceAll(" ", " ");
+const plain = (text: string | null) => (text ?? "").replaceAll("\u00a0", " ");
 
 function entriesOf(session: Session): ShoppingEntry[] {
   const d = session.data.value;

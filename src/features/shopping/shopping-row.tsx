@@ -11,10 +11,18 @@ export interface ShoppingRowProps {
   onToggle: () => void;
   /** Abre o sheet "Ajustar" da linha. */
   onAdjust: () => void;
+  /** Repor gravando: ajustar agora correria com o lote. */
+  adjustDisabled?: boolean;
 }
 
 /** Linha pilula de 2e (markup linhas 400 a 406 e 410 a 416). */
-export function ShoppingRow({ entry, meta, onToggle, onAdjust }: ShoppingRowProps): JSX.Element {
+export function ShoppingRow({
+  entry,
+  meta,
+  onToggle,
+  onAdjust,
+  adjustDisabled = false,
+}: ShoppingRowProps): JSX.Element {
   const title = entryTitle(entry);
   const on = entry.checked;
   const price = entryPrice(entry);
@@ -53,6 +61,7 @@ export function ShoppingRow({ entry, meta, onToggle, onAdjust }: ShoppingRowProp
         type="button"
         aria-labelledby={`${verbId} ${priceId}`}
         onClick={onAdjust}
+        disabled={adjustDisabled}
         class="flex min-h-10 shrink-0 items-center gap-1 rounded-pill pr-4 pl-2 font-semibold text-[13px]"
       >
         <span id={verbId} hidden>

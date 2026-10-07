@@ -574,13 +574,63 @@ describe("pedidos da casa validados", () => {
   });
 });
 
+describe("tirar da lista so uma vez", () => {
+  it("unpinItem e removeListExtra recusam linha que ja saiu", async () => {
+    const { repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { pinned: 1 });
+    await repo.unpinItem(item.id);
+    await expect(repo.unpinItem(item.id)).rejects.toThrow("Esse item já saiu da lista.");
+    const extra = await repo.addListExtra("Banana");
+    await repo.removeListExtra(extra.id);
+    await expect(repo.removeListExtra(extra.id)).rejects.toThrow("Esse pedido já saiu da lista.");
+  });
+
+  it("restoreItemMark devolve a fixacao que o unpin tirou e nao mexe em marca viva", async () => {
+    const { repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 10);
+    await repo.markItem(item.id, { pinned: 1, qty: 4 });
+    await repo.unpinItem(item.id);
+    expect(await repo.restoreItemMark(item.id)).toMatchObject({
+      pinned: 1,
+      qty: 4,
+      deletedAt: null,
+    });
+    // Marca viva (outro toque ja a refez): o desfazer atrasado nao a sobrescreve.
+    await repo.markItem(item.id, { qty: 7 });
+    expect(await repo.restoreItemMark(item.id)).toMatchObject({ qty: 7 });
+  });
+});
+
 describe("repor em lote", () => {
+  it("checkout usa quantidade e preco da marca no banco, nao os da tela", async () => {
+    const { db, repo, coffee } = await market();
+    await repo.markItem(coffee.id, { qty: 6, priceMinor: 1000 });
+    await repo.checkout({
+      items: [{ itemId: coffee.id, qty: 2, unitPriceMinor: null }],
+      extraIds: [],
+    });
+    const restock = (await db.movements.toArray()).find((m) => m.reason === "restock");
+    expect(restock?.delta).toBe(6);
+    expect((await db.prices.toArray()).map((p) => [p.unitPriceMinor, p.qty])).toEqual([[1000, 6]]);
+  });
+
+  it("checkout sem qty na marca usa a da linha", async () => {
+    const { db, repo, coffee } = await market();
+    await repo.markItem(coffee.id, { qty: null });
+    await repo.checkout({
+      items: [{ itemId: coffee.id, qty: 3, unitPriceMinor: null }],
+      extraIds: [],
+    });
+    expect((await db.movements.toArray()).find((m) => m.reason === "restock")?.delta).toBe(3);
+  });
+
   async function market() {
     const ctx = await openTestRepository();
     const { repo } = ctx;
     const coffee = await repo.createItem(cafe(), 1);
     const det = await repo.createItem(cafe({ name: "Detergente", ean: null }));
-    await repo.markItem(coffee.id, { checked: 1, qty: 2 });
+    await repo.markItem(coffee.id, { checked: 1, qty: 2, priceMinor: 4290 });
     await repo.markItem(det.id, { checked: 1 });
     const banana = await repo.addListExtra("Banana");
     await repo.toggleListExtra(banana.id);
@@ -654,7 +704,8 @@ describe("repor em lote", () => {
     expect(receipt.markIds).toEqual([listMarkId(coffee.id)]);
     expect(receipt.extraIds).toEqual([]);
     expect((await db.movements.toArray()).filter((m) => m.itemId === det.id)).toHaveLength(0);
-    expect(await db.prices.count()).toBe(0);
+    // So o preco da marca do cafe entra; o do det (desmarcado) nao.
+    expect((await db.prices.toArray()).map((p) => p.itemId)).toEqual([coffee.id]);
     expect((await db.listMarks.get(listMarkId(det.id)))?.deletedAt).toBeNull();
     expect((await db.listExtras.get(banana.id))?.deletedAt).toBeNull();
   });

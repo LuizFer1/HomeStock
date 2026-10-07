@@ -115,6 +115,32 @@ describe("pin", () => {
   });
 });
 
+describe("fila serial dos comandos", () => {
+  it("dois toques e o tirar da lista, sem await, terminam com a marca apagada", async () => {
+    const { item, store, markOf } = await setup();
+    await store.pin(item.id);
+    const a = store.toggle({ kind: "item", id: item.id });
+    const b = store.toggle({ kind: "item", id: item.id });
+    const c = store.unpin(item.id);
+    await Promise.all([a, b, c]);
+    expect(markOf()).toBeUndefined();
+  });
+
+  it("o repor com um ajuste pendente leva a quantidade e o preco ajustados", async () => {
+    const { session, item, store, list } = await setup();
+    await store.toggle({ kind: "item", id: item.id });
+    const seen = list();
+    const entry = seen.auto[0];
+    if (entry === undefined) throw new Error("sem linha");
+    const adjust = store.adjust(entry, 7, 1500);
+    const receipt = await store.checkout(seen);
+    await adjust;
+    expect(receipt.itemIds).toEqual([item.id]);
+    expect(quantityOf(item.id, session.data.value.movements)).toBe(7);
+    expect(session.data.value.prices.map((p) => [p.unitPriceMinor, p.qty])).toEqual([[1500, 7]]);
+  });
+});
+
 describe("checkout", () => {
   it("grava so a linha marcada e o undo devolve", async () => {
     const { session, item, store, list } = await setup();

@@ -33,7 +33,7 @@ function entry(overrides: Partial<ShoppingEntry> = {}): ShoppingEntry {
 // formatMoney usa espaco duro: normaliza para comparar o nome com o texto visivel.
 function adjustButton(name: string): HTMLElement {
   return screen.getByRole("button", {
-    name: (accessible) => accessible.replaceAll(" ", " ") === name,
+    name: (accessible) => accessible.replaceAll("\u00a0", " ") === name,
   });
 }
 
