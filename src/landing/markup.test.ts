@@ -119,6 +119,54 @@ describe("hero", () => {
   });
 });
 
+describe("simulacao do hero", () => {
+  const doc = loadLanding();
+  const sim = doc.querySelector("#topo [data-sim]");
+
+  it("existe no hero, com a descricao para leitor de tela", () => {
+    expect(sim).not.toBeNull();
+    expect(textOf(doc.querySelector("#topo p.sr-only"))).toBe(
+      "Simulação do app: o Início mostra o que está acabando, o leitor de código de barras guarda um café e a lista de compras vai sendo marcada no mercado.",
+    );
+  });
+
+  it("celular e avisos sao decorativos e nada dentro deles recebe foco", () => {
+    const decor = sim?.querySelectorAll(".sim-phone, .sim-float") ?? [];
+    expect(decor.length).toBeGreaterThanOrEqual(3);
+    for (const el of decor) {
+      expect(el.getAttribute("aria-hidden"), el.className).toBe("true");
+      expect(el.querySelectorAll("a, button, input, [tabindex]")).toHaveLength(0);
+    }
+  });
+
+  it("controles: tres abas e o play/pause com nome", () => {
+    const group = sim?.querySelector('[role="group"]');
+    expect(group?.getAttribute("aria-label")).toBe("Controles da simulação");
+    const tabs = [...(group?.querySelectorAll("button[data-sim-tab]") ?? [])];
+    expect(tabs.map((t) => textOf(t))).toEqual(["Início", "Escanear", "Compras"]);
+    expect(tabs.map((t) => t.getAttribute("data-sim-tab"))).toEqual(["home", "scan", "list"]);
+    for (const t of tabs) expect(t.hasAttribute("aria-pressed")).toBe(true);
+    expect(group?.querySelector("button[data-sim-toggle]")?.getAttribute("aria-label")).toBe(
+      "Pausar simulação",
+    );
+  });
+
+  it("regiao viva educada, so para o que a pessoa pedir", () => {
+    const live = sim?.querySelector("[data-sim-live]");
+    expect(live?.getAttribute("aria-live")).toBe("polite");
+    expect(live?.classList.contains("sr-only")).toBe(true);
+    expect(textOf(live)).toBe("");
+  });
+
+  it("ja mostra o quadro do passo 0 sem JS", () => {
+    expect(textOf(sim?.querySelector('[data-s="value"]'))?.replace(/\s/g, " ")).toBe("R$ 1.284,50");
+    expect(textOf(sim?.querySelector('[data-s="msgTitle"]'))).toBe("Leite vence em 3 dias");
+    expect(textOf(sim?.querySelector(".sim-legend"))).toBe(
+      "Simulação ao vivo · toque para explorar",
+    );
+  });
+});
+
 describe("numeros", () => {
   const doc = loadLanding();
 

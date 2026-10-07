@@ -3,6 +3,7 @@
 import "./landing.css";
 import { startFloat, startReveal } from "./motion";
 import { bindSharedList } from "./shared-list";
+import { bindSimulation } from "./sim-view";
 
 bindSharedList(document);
 
@@ -16,4 +17,16 @@ if (!reduceMotion) {
     cancel: (id) => cancelAnimationFrame(id),
   });
   if ("IntersectionObserver" in window) startReveal(document, IntersectionObserver);
+}
+
+const sim = document.querySelector<HTMLElement>("[data-sim]");
+if (sim) {
+  bindSimulation(sim, document, {
+    reduceMotion,
+    setInterval: (fn, ms) => window.setInterval(fn, ms),
+    clearInterval: (id) => window.clearInterval(id),
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (id) => window.clearTimeout(id),
+    IntersectionObserver: "IntersectionObserver" in window ? IntersectionObserver : undefined,
+  });
 }
