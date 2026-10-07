@@ -9,8 +9,13 @@ afterEach(cleanup);
 
 async function setup(version: string | null = null) {
   const { session } = await openTestSession({ member: ANA });
-  const store = createSettingsStore(session);
-  const props = { onBack: vi.fn(), onEditProfile: vi.fn(), onOpenPlaces: vi.fn() };
+  const store = createSettingsStore(session, { download: vi.fn(), today: () => "2026-10-06" });
+  const props = {
+    onBack: vi.fn(),
+    onEditProfile: vi.fn(),
+    onOpenPlaces: vi.fn(),
+    onLeave: vi.fn().mockResolvedValue(undefined),
+  };
   render(<SettingsPage session={session} store={store} version={version} {...props} />);
   return { session, store, ...props };
 }
@@ -124,6 +129,20 @@ describe("SettingsPage", () => {
     cleanup();
     await setup(null);
     expect(screen.getByText("HomeStock")).toBeTruthy();
+  });
+
+  it("Exportar estoque chama o store", async () => {
+    const { store } = await setup();
+    const spy = vi.spyOn(store, "exportStock").mockImplementation(() => {});
+    const row = screen.getByRole("button", { name: /Exportar estoque/ });
+    expect(row.textContent).toContain("CSV");
+    fireEvent.click(row);
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it("tem o botao Sair da casa", async () => {
+    await setup();
+    expect(screen.getByRole("button", { name: "Sair da casa" })).toBeTruthy();
   });
 
   it("nao mostra o que a fatia nao entrega", async () => {

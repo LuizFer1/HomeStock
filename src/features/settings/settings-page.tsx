@@ -14,6 +14,7 @@ import { Chip } from "../ui/chip";
 import { IconButton } from "../ui/icon-button";
 import { MEMBER_COLOR_STYLE } from "../ui/member-color";
 import { SwitchRow } from "../ui/switch-row";
+import { LeaveSection } from "./leave-section";
 import { Group, InlineTextRow, Row } from "./settings-group";
 import type { SettingsStore } from "./store";
 
@@ -25,6 +26,7 @@ export interface SettingsPageProps {
   onBack: () => void;
   onEditProfile: () => void;
   onOpenPlaces: () => void;
+  onLeave: () => Promise<void>;
 }
 
 function pad(n: number): string {
@@ -45,6 +47,7 @@ export function SettingsPage({
   onBack,
   onEditProfile,
   onOpenPlaces,
+  onLeave,
 }: SettingsPageProps) {
   const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -199,6 +202,21 @@ export function SettingsPage({
           onSave={(value) => store.setPref("preferredStore", value)}
         />
       </Group>
+
+      <Group label="Dados">
+        <Row
+          label="Exportar estoque"
+          value="CSV"
+          trailing={
+            <span class="text-neutral-500">
+              <ChevronRight size={16} strokeWidth={2.75} />
+            </span>
+          }
+          onClick={() => store.exportStock()}
+        />
+      </Group>
+
+      <LeaveSection onLeave={onLeave} />
 
       <p class="mt-2.5 text-center text-[11px] text-neutral-600">
         {stamp === null ? "HomeStock" : `HomeStock · versão de ${stamp}`}

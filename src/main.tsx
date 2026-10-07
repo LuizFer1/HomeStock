@@ -8,6 +8,8 @@ import { AVATAR_PHOTO, processPhoto } from "./features/photo/photo";
 import { browserPhotoDeps } from "./features/photo/photo-canvas";
 import { createSession } from "./features/session/session";
 import { localToday } from "./features/session/today";
+import { downloadText } from "./features/settings/download";
+import { type ResetDeps, resetDevice } from "./features/settings/reset";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import { createUpdateStore, type SwContainer } from "./features/update/store";
@@ -50,7 +52,10 @@ const session = createSession({
 void session.init();
 
 const onboarding = createOnboardingStore(session);
-const settings = createSettingsStore(session);
+const settings = createSettingsStore(session, {
+  download: downloadText,
+  today: () => localToday(),
+});
 
 const router = createRouter(window.history);
 window.addEventListener("popstate", router.onPopState);
@@ -72,6 +77,18 @@ render(
     onboarding={onboarding}
     settings={settings}
     processFile={(file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO)}
+    onLeave={() =>
+      resetDevice({
+        db,
+        // `typeof`: em contexto sandbox so referenciar `caches` ou `navigator.serviceWorker` lanca.
+        caches: typeof caches === "undefined" ? undefined : caches,
+        serviceWorker:
+          typeof navigator === "undefined" || !("serviceWorker" in navigator)
+            ? undefined
+            : (navigator.serviceWorker as ResetDeps["serviceWorker"]),
+        reload: () => window.location.reload(),
+      })
+    }
   />,
   root,
 );

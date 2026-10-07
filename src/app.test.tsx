@@ -26,7 +26,8 @@ function setup(session: Session, ready = false) {
       update={update}
       session={session}
       onboarding={createOnboardingStore(session)}
-      settings={createSettingsStore(session)}
+      settings={createSettingsStore(session, { download: vi.fn(), today: () => "2026-10-06" })}
+      onLeave={async () => {}}
       processFile={async () => "data:image/webp;base64,AAA"}
     />,
   );
@@ -178,5 +179,19 @@ describe("App", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(history.back).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Ajustes" })).toBeTruthy();
+  });
+
+  it("Categorias e locais abre a tela de lugares e Voltar volta aos Ajustes", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { router, history } = setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Categorias e locais/ }));
+    expect(await screen.findByRole("heading", { name: "Categorias e locais" })).toBeTruthy();
+    expect(router.stack.value.map((s) => s.kind)).toEqual(["settings", "places"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(history.back).toHaveBeenCalled();
+    router.onPopState();
+    expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
   });
 });

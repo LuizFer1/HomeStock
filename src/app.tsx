@@ -2,6 +2,7 @@ import { useEffect } from "preact/hooks";
 import { MemberWizard } from "./features/onboarding/member-wizard";
 import type { OnboardingStore } from "./features/onboarding/store";
 import type { Session } from "./features/session/session";
+import { PlacesPage } from "./features/settings/places-page";
 import { SettingsPage } from "./features/settings/settings-page";
 import type { SettingsStore } from "./features/settings/store";
 import type { Router, Screen, Tab } from "./features/shell/route";
@@ -34,9 +35,18 @@ interface StackedProps {
   settings: SettingsStore;
   version: string | null;
   processFile: (file: Blob) => Promise<string>;
+  onLeave: () => Promise<void>;
 }
 
-function StackedScreen({ screen, router, session, settings, version, processFile }: StackedProps) {
+function StackedScreen({
+  screen,
+  router,
+  session,
+  settings,
+  version,
+  processFile,
+  onLeave,
+}: StackedProps) {
   const me = session.localMember.value;
   switch (screen.kind) {
     case "settings":
@@ -48,8 +58,11 @@ function StackedScreen({ screen, router, session, settings, version, processFile
           onBack={router.back}
           onEditProfile={() => router.push({ kind: "profile" })}
           onOpenPlaces={() => router.push({ kind: "places" })}
+          onLeave={onLeave}
         />
       );
+    case "places":
+      return <PlacesPage session={session} store={settings} onBack={router.back} />;
     case "profile":
       if (me === null) return <UnknownScreen onBack={router.back} />;
       return (
@@ -80,6 +93,7 @@ export function App({
   onboarding,
   settings,
   processFile,
+  onLeave,
 }: {
   router: Router;
   update: UpdateStore;
@@ -87,6 +101,7 @@ export function App({
   onboarding: OnboardingStore;
   settings: SettingsStore;
   processFile: (file: Blob) => Promise<string>;
+  onLeave: () => Promise<void>;
 }) {
   const status = session.status.value;
 
@@ -133,6 +148,7 @@ export function App({
           settings={settings}
           version={update.version}
           processFile={processFile}
+          onLeave={onLeave}
         />
         {banner}
       </div>
