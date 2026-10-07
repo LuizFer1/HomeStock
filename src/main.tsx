@@ -31,6 +31,15 @@ function serviceWorkerContainer(): SwContainer | undefined {
   }
 }
 
+// Idem para `caches`: o getter lanca em contexto sandbox, e `typeof` nao protege.
+function cachesOrUndefined(): ResetDeps["caches"] {
+  try {
+    return typeof caches === "undefined" ? undefined : caches;
+  } catch {
+    return undefined;
+  }
+}
+
 const update = createUpdateStore({
   serviceWorker: serviceWorkerContainer(),
   reload: () => {
@@ -83,15 +92,15 @@ render(
         db,
         // Mesma origem do HomeFinance: so o que e deste app (ver reset-scope.ts).
         ...scopeResetDeps({
-          // `typeof`: em contexto sandbox so referenciar `caches` ou `navigator.serviceWorker` lanca.
-          caches: typeof caches === "undefined" ? undefined : caches,
-          serviceWorker:
-            typeof navigator === "undefined" || !("serviceWorker" in navigator)
-              ? undefined
-              : (navigator.serviceWorker as ResetDeps["serviceWorker"]),
+          // Os dois helpers tem try/catch: em contexto sandbox so ler o getter lanca.
+          caches: cachesOrUndefined(),
+          serviceWorker: serviceWorkerContainer() as ResetDeps["serviceWorker"],
           scope: new URL(import.meta.env.BASE_URL, window.location.href).href,
         }),
-        reload: () => window.location.reload(),
+        // Desempilha o historico antes: as entradas sobrevivem a recarga.
+        reload: () => {
+          void router.unwind().then(() => window.location.reload());
+        },
       })
     }
   />,

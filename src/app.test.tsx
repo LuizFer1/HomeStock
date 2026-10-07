@@ -12,7 +12,7 @@ import { createRouter } from "./features/shell/route";
 import type { UpdateStore } from "./features/update/store";
 
 function setup(session: Session, ready = false) {
-  const history = { pushState: vi.fn(), back: vi.fn() };
+  const history = { pushState: vi.fn(), back: vi.fn(), go: vi.fn() };
   const router = createRouter(history);
   const update: UpdateStore = {
     ready: signal(ready),
@@ -151,6 +151,19 @@ describe("App", () => {
     router.onPopState();
     expect(await screen.findByRole("button", { name: "Ajustes" })).toBeTruthy();
     expect(screen.getByRole("img", { name: "Ana Maria" })).toBeTruthy();
+  });
+
+  it("sem a linha do morador local o botao Ajustes continua, com inicial neutra", async () => {
+    const { db, session } = await openTestSession({ member: ANA });
+    await db.members.clear();
+    await session.reload();
+    expect(session.localMember.value).toBeNull();
+    const { router } = setup(session);
+    const button = screen.getByRole("button", { name: "Ajustes" });
+    expect(button.querySelector("img")).toBeNull();
+    expect(button.textContent).toBe("?");
+    fireEvent.click(button);
+    expect(router.stack.value.map((s) => s.kind)).toEqual(["settings"]);
   });
 
   it("voltar do sistema durante o salvar nao desempilha duas vezes", async () => {

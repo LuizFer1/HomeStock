@@ -12,6 +12,7 @@ export interface Screen {
 export interface HistoryLike {
   pushState: (data: unknown, unused: string) => void;
   back: () => void;
+  go: (delta: number) => void;
 }
 
 export interface Router {
@@ -23,6 +24,12 @@ export interface Router {
   push: (screen: Screen) => void;
   /** Voltar da UI: passa pelo historico para o botao do Android e o da tela andarem juntos. */
   back: () => void;
+  /**
+   * Volta ate a raiz de uma vez e resolve quando o navegador terminou. Usado
+   * antes de recarregar: as entradas empilhadas sobreviveriam a recarga e o
+   * primeiro voltar do Android seria engolido por uma entrada sem tela.
+   */
+  unwind: () => Promise<void>;
   /** Ligar ao `popstate` da janela. */
   onPopState: () => void;
 }
@@ -35,6 +42,7 @@ export interface Router {
 export function createRouter(history: HistoryLike, initial: Tab = "home"): Router {
   const tab = signal<Tab>(initial);
   const stack = signal<readonly Screen[]>([]);
+  let unwound: (() => void) | null = null;
 
   return {
     tab,
@@ -53,7 +61,19 @@ export function createRouter(history: HistoryLike, initial: Tab = "home"): Route
       if (stack.value.length === 0) return;
       history.back();
     },
+    unwind() {
+      const depth = stack.value.length;
+      if (depth === 0) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        unwound = resolve;
+        history.go(-depth);
+        // Sem popstate (historico ja limpo pelo navegador) nao pode travar.
+        setTimeout(resolve, 500);
+      });
+    },
     onPopState() {
+      unwound?.();
+      unwound = null;
       if (stack.value.length === 0) return;
       stack.value = stack.value.slice(0, -1);
     },

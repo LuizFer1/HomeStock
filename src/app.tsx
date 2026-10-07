@@ -161,16 +161,19 @@ export function App({
         {tab === "home" ? (
           <div class="flex items-center justify-between">
             <h1 class="text-[36px]">{TITLES[tab]}</h1>
-            {me !== null ? (
-              <button
-                type="button"
-                aria-label="Ajustes"
-                class="rounded-pill"
-                onClick={() => router.push({ kind: "settings" })}
-              >
+            <button
+              type="button"
+              aria-label="Ajustes"
+              class="rounded-pill"
+              onClick={() => router.push({ kind: "settings" })}
+            >
+              {/* Sem a linha do morador (apagada no sync), o botao fica: "Sair da casa" mora nos Ajustes. */}
+              {me !== null ? (
                 <Avatar name={me.name} color={me.color} photo={me.photo} size={40} />
-              </button>
-            ) : null}
+              ) : (
+                <Avatar name="" color="cacau" photo={null} size={40} />
+              )}
+            </button>
           </div>
         ) : (
           <h1 class="text-[36px]">{TITLES[tab]}</h1>

@@ -4,6 +4,7 @@ import { createRouter, type HistoryLike } from "./route";
 function fakeHistory() {
   const entries: unknown[] = [];
   let backs = 0;
+  const jumps: number[] = [];
   const history: HistoryLike = {
     pushState: (data) => {
       entries.push(data);
@@ -11,8 +12,11 @@ function fakeHistory() {
     back: () => {
       backs += 1;
     },
+    go: (delta) => {
+      jumps.push(delta);
+    },
   };
-  return { history, entries, backs: () => backs };
+  return { history, entries, jumps, backs: () => backs };
 }
 
 describe("router", () => {
@@ -45,6 +49,29 @@ describe("router", () => {
     expect(router.stack.value).toHaveLength(1);
     router.onPopState();
     expect(router.top.value).toBeNull();
+  });
+
+  it("unwind volta todas as entradas de uma vez e resolve no popstate", async () => {
+    const fake = fakeHistory();
+    const router = createRouter(fake.history);
+    router.push({ kind: "settings" });
+    router.push({ kind: "places" });
+    let done = false;
+    const pending = router.unwind().then(() => {
+      done = true;
+    });
+    expect(fake.jumps).toEqual([-2]);
+    await Promise.resolve();
+    expect(done).toBe(false);
+    router.onPopState();
+    await pending;
+    expect(done).toBe(true);
+  });
+
+  it("unwind sem telas resolve sem mexer no historico", async () => {
+    const fake = fakeHistory();
+    await createRouter(fake.history).unwind();
+    expect(fake.jumps).toEqual([]);
   });
 
   it("back sem telas nao mexe no historico", () => {
