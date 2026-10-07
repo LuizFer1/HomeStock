@@ -97,6 +97,18 @@ function liveMarks(
   return out;
 }
 
+/**
+ * Marca viva do item, ja sem a marca velha demais (regra do repor) e sem a apagada.
+ * Use esta funcao, nunca um find cru em `marks`.
+ */
+export function liveMarkOf(
+  item: Item,
+  movements: readonly Movement[],
+  marks: readonly ListMark[],
+): ListMark | undefined {
+  return liveMarks(new Map([[item.id, item]]), movements, marks).get(item.id);
+}
+
 /** A lista de compras: projeção pura da despensa, das marcas e dos pedidos. Nada e gravado. */
 export function shoppingList(input: {
   items: readonly Item[];
@@ -179,7 +191,11 @@ export function shoppingList(input: {
   return { auto, house, done, total: auto.length + house.length, remainingMinor, unpriced };
 }
 
-/** Para o CTA do Detalhe: na lista automatica (preferencia ligada), fixado, ou fora. */
+/**
+ * Para o CTA do Detalhe: na lista automatica (preferencia ligada), fixado, ou fora.
+ * O chamador passa `liveMarkOf(...)`, nunca um find cru: marca ressuscitada pelo sync
+ * depois de um repor nao pode mostrar "fixado" onde a lista nao mostra.
+ */
 export function listStatusOf(
   item: Item,
   qty: number,

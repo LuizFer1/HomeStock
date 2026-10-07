@@ -99,10 +99,10 @@ describe("requesterName", () => {
 
 describe("entryPrice", () => {
   it("digitado, estimado e nenhum", () => {
-    const typed = entryPrice(entry({ priceMinor: 8580 }));
+    const typed = entryPrice(entry({ qty: 2, priceMinor: 4290 }));
     expect(plain(typed?.text)).toBe("R$ 85,80");
     expect(typed?.estimate).toBe(false);
-    const est = entryPrice(entry({ estimateMinor: 8580 }));
+    const est = entryPrice(entry({ qty: 2, estimateMinor: 4290 }));
     expect(plain(est?.text)).toBe("~R$ 85,80");
     expect(est?.estimate).toBe(true);
     expect(entryPrice(entry())).toBeNull();

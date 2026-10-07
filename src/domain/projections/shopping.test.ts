@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ListExtra } from "../model/list-extra";
 import type { ListMark } from "../model/list-mark";
 import { fakeItem, fakeMovement, fakePrice } from "../model/row.fake";
-import { listStatusOf, shoppingList, unitPriceOf } from "./shopping";
+import { listStatusOf, liveMarkOf, shoppingList, unitPriceOf } from "./shopping";
 
 const hlc = (n: number) => `${String(n).padStart(13, "0")}-0000-${"0".repeat(26)}`;
 
@@ -290,5 +290,26 @@ describe("listStatusOf", () => {
     expect(listStatusOf(item, 1, undefined, false)).toBe("off");
     expect(listStatusOf(fakeItem({ min: 0 }), 0, undefined, true)).toBe("off");
     expect(listStatusOf(fakeItem({ deletedAt: hlc(1) }), 0, undefined, true)).toBe("off");
+  });
+});
+
+describe("liveMarkOf", () => {
+  const item = fakeItem();
+  const m = (updatedAt: string) => mark(item.id, { pinned: 1, updatedAt });
+
+  it("marca mais velha que restock vivo e undefined; mais nova volta", () => {
+    const restock = fakeMovement(item.id, 1, { reason: "restock", updatedAt: hlc(500) });
+    expect(liveMarkOf(item, [restock], [m(hlc(400))])).toBeUndefined();
+    expect(liveMarkOf(item, [restock], [m(hlc(600))])?.pinned).toBe(1);
+  });
+
+  it("restock desfeito nao conta e marca apagada some", () => {
+    const undone = fakeMovement(item.id, 1, {
+      reason: "restock",
+      updatedAt: hlc(500),
+      deletedAt: hlc(550),
+    });
+    expect(liveMarkOf(item, [undone], [m(hlc(400))])).toBeDefined();
+    expect(liveMarkOf(item, [], [{ ...m(hlc(400)), deletedAt: hlc(450) }])).toBeUndefined();
   });
 });

@@ -34,13 +34,14 @@ export function entryMeta(entry: ShoppingEntry, members: readonly Member[]): str
 }
 
 /**
- * Texto do botão de preço: digitado "R$ 85,80" (estimate false); só último
+ * Texto do botão de preço, o total da linha (qtd x unitário): digitado "R$ 85,80" (estimate false); só último
  * preço "~R$ 85,80" (estimate true); nenhum: null (a linha mostra "Preço").
  */
 export function entryPrice(entry: ShoppingEntry): { text: string; estimate: boolean } | null {
-  if (entry.priceMinor !== null) return { text: formatMoney(entry.priceMinor), estimate: false };
+  if (entry.priceMinor !== null)
+    return { text: formatMoney(entry.qty * entry.priceMinor), estimate: false };
   if (entry.estimateMinor !== null) {
-    return { text: `~${formatMoney(entry.estimateMinor)}`, estimate: true };
+    return { text: `~${formatMoney(entry.qty * entry.estimateMinor)}`, estimate: true };
   }
   return null;
 }
