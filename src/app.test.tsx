@@ -213,6 +213,23 @@ describe("App", () => {
     expect(screen.getByRole("status").textContent).toContain("Olá");
   });
 
+  it("a regiao do toast e o mesmo no ao empilhar e ao voltar", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { ctx } = setup(session);
+    act(() => ctx.toast.show("Oi"));
+    const region = screen.getByRole("status");
+
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
+    expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region.textContent).toContain("Oi");
+
+    ctx.router.onPopState();
+    expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region.textContent).toContain("Oi");
+  });
+
   it("com o aviso de versao o toast sobe", async () => {
     const { session } = await openTestSession({ member: ANA });
     const { ctx } = setup(session, true);

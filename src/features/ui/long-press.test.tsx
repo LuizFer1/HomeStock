@@ -22,7 +22,17 @@ function setup() {
 }
 
 function down(el: HTMLElement, init: Partial<PointerEventInit> = {}) {
-  fireEvent.pointerDown(el, { button: 0, clientX: 0, clientY: 0, ...init });
+  fireEvent.pointerDown(el, { button: 0, isPrimary: true, clientX: 0, clientY: 0, ...init });
+}
+
+/** Click de ponteiro: `detail` conta os cliques. */
+function pointerClick(): MouseEvent {
+  return new MouseEvent("click", { detail: 1 });
+}
+
+/** Click do teclado (Enter, Espaco): `detail` 0. */
+function keyClick(): MouseEvent {
+  return new MouseEvent("click", { detail: 0 });
 }
 
 beforeEach(() => {
@@ -143,25 +153,91 @@ describe("useLongPress", () => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
     });
     expect(onLongPress).toHaveBeenCalledTimes(1);
-    expect(last?.consumeClick()).toBe(true);
+    expect(last?.consumeClick(pointerClick())).toBe(true);
   });
 
   it("consumeClick e true uma vez depois do disparo", () => {
     const { button } = setup();
-    expect(last?.consumeClick()).toBe(false);
+    expect(last?.consumeClick(pointerClick())).toBe(false);
     down(button);
     act(() => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
     });
-    expect(last?.consumeClick()).toBe(true);
-    expect(last?.consumeClick()).toBe(false);
+    expect(last?.consumeClick(pointerClick())).toBe(true);
+    expect(last?.consumeClick(pointerClick())).toBe(false);
   });
 
   it("clique direito ou tecla de menu nao engolem o proximo clique", () => {
     const { button } = setup();
     fireEvent.contextMenu(button);
     // O clique seguinte (Enter do teclado) nao vem precedido de pointerdown.
-    expect(last?.consumeClick()).toBe(false);
+    expect(last?.consumeClick(pointerClick())).toBe(false);
+  });
+
+  it("click do teclado nunca e engolido", () => {
+    const { button } = setup();
+    down(button);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(last?.consumeClick(keyClick())).toBe(false);
+  });
+
+  it("disparo sem click depois (sheet por cima) nao engole o proximo Enter", () => {
+    const { button } = setup();
+    down(button);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    // O sheet abriu por cima: o dedo sai do card e o click nunca chega nele.
+    fireEvent.pointerLeave(button);
+    fireEvent.pointerUp(button);
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(last?.consumeClick(pointerClick())).toBe(false);
+  });
+
+  it("o click que segue o soltar ainda e engolido", () => {
+    const { button } = setup();
+    down(button);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    fireEvent.pointerUp(button);
+    // Mesmo ciclo do pointerup, antes do setTimeout 0.
+    expect(last?.consumeClick(pointerClick())).toBe(true);
+  });
+
+  it("segundo dedo durante a pressao cancela", () => {
+    const { onLongPress, button } = setup();
+    down(button);
+    down(button, { isPrimary: false, pointerId: 2 });
+    expect(button.dataset.pressing).toBeUndefined();
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
+
+  it("ponteiro nao primario sozinho nao inicia", () => {
+    const { onLongPress, button } = setup();
+    down(button, { isPrimary: false });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
+
+  it("desmontar logo depois de soltar limpa o timer de limpeza", () => {
+    const { button, unmount } = setup();
+    down(button);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    fireEvent.pointerUp(button);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("vibra 12 ms ao disparar", () => {

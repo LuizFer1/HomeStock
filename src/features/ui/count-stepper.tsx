@@ -1,5 +1,5 @@
 import { Minus, Plus } from "lucide-preact";
-import { useId } from "preact/hooks";
+import { useEffect, useId, useRef } from "preact/hooks";
 
 export interface CountStepperProps {
   label: string;
@@ -16,6 +16,22 @@ const STEP =
 /** Stepper pequeno de 2d (markup linha 362): botoes 44 numa pilula `surface`. */
 export function CountStepper({ label, hint, value, min, max = 999, onChange }: CountStepperProps) {
   const id = useId();
+  const dec = useRef<HTMLButtonElement>(null);
+  const inc = useRef<HTMLButtonElement>(null);
+  // Qual botao o ultimo toque usou: se ele desabilitou no limite, o foco cairia
+  // no body (o navegador tira o foco de botao desabilitado) e o teclado se perde.
+  const pressed = useRef<"dec" | "inc" | null>(null);
+
+  useEffect(() => {
+    const last = pressed.current;
+    pressed.current = null;
+    const from = last === "dec" ? dec.current : last === "inc" ? inc.current : null;
+    const to = last === "dec" ? inc.current : dec.current;
+    if (from === null || !from.disabled) return;
+    const active = document.activeElement;
+    if (active === from || active === null || active === document.body) to?.focus();
+  }, [value, min, max]);
+
   return (
     // fieldset da o papel group; o rotulo fica num span (legend dentro de flex e instavel).
     <fieldset
@@ -33,8 +49,12 @@ export function CountStepper({ label, hint, value, min, max = 999, onChange }: C
         <button
           type="button"
           aria-label={`Diminuir ${label}`}
+          ref={dec}
           disabled={value <= min}
-          onClick={() => onChange(value - 1)}
+          onClick={() => {
+            pressed.current = "dec";
+            onChange(value - 1);
+          }}
           class={STEP}
         >
           <Minus size={18} strokeWidth={2.75} />
@@ -43,8 +63,12 @@ export function CountStepper({ label, hint, value, min, max = 999, onChange }: C
         <button
           type="button"
           aria-label={`Aumentar ${label}`}
+          ref={inc}
           disabled={value >= max}
-          onClick={() => onChange(value + 1)}
+          onClick={() => {
+            pressed.current = "inc";
+            onChange(value + 1);
+          }}
           class={STEP}
         >
           <Plus size={18} strokeWidth={2.75} />

@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { useState } from "preact/hooks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CountStepper } from "./count-stepper";
 
@@ -68,5 +69,22 @@ describe("CountStepper", () => {
     expect(inc().disabled).toBe(false);
     rerender(<CountStepper label="Mínimo" value={999} min={0} onChange={() => {}} />);
     expect(inc().disabled).toBe(true);
+  });
+
+  it("botao que desabilita no limite com foco passa o foco ao outro", () => {
+    function Live({ start }: { start: number }) {
+      const [value, setValue] = useState(start);
+      return <CountStepper label="Mínimo" value={value} min={0} max={2} onChange={setValue} />;
+    }
+    render(<Live start={1} />);
+    const dec = screen.getByRole("button", { name: "Diminuir Mínimo" });
+    const inc = screen.getByRole("button", { name: "Aumentar Mínimo" });
+    dec.focus();
+    fireEvent.click(dec);
+    expect(document.activeElement).toBe(inc);
+    fireEvent.click(inc);
+    expect(document.activeElement).toBe(inc);
+    fireEvent.click(inc);
+    expect(document.activeElement).toBe(dec);
   });
 });

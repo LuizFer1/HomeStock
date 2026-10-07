@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { useState } from "preact/hooks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Sheet } from "./sheet";
 
@@ -8,7 +9,65 @@ function dialog(): HTMLDialogElement {
   return document.querySelector("dialog") as HTMLDialogElement;
 }
 
+/** Pai real: fecha o estado no onClose, como o Estoque fara. */
+function Harness({ onClose }: { onClose: () => void }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(false)}>
+        Fechar de fora
+      </button>
+      <Sheet
+        open={open}
+        label="Ações"
+        onClose={() => {
+          onClose();
+          setOpen(false);
+        }}
+      >
+        <p>Oi</p>
+      </Sheet>
+    </>
+  );
+}
+
 describe("Sheet", () => {
+  it("backdrop chama onClose exatamente uma vez e fecha", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    fireEvent.click(dialog());
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialog().open).toBe(false);
+  });
+
+  it("Esc chama onClose exatamente uma vez", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    // E o que o navegador faz no Esc: fecha o dialog e dispara `close`.
+    act(() => dialog().close());
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialog().open).toBe(false);
+  });
+
+  it("fechar pela prop nao chama onClose", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    fireEvent.click(screen.getByText("Fechar de fora"));
+    expect(dialog().open).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("o painel rola quando o conteudo passa da tela", () => {
+    render(
+      <Sheet open label="Ações" onClose={() => {}}>
+        <p>Oi</p>
+      </Sheet>,
+    );
+    const panel = screen.getByText("Oi").parentElement as HTMLElement;
+    expect(panel.className).toContain("max-h-[85dvh]");
+    expect(panel.className).toContain("overflow-y-auto");
+  });
+
   // O happy-dom implementa `showModal`/`close` (so o atributo `open` e o evento
   // `close`), entao nao ha polyfill aqui.
   it("open abre o dialog com o nome acessivel", () => {

@@ -55,45 +55,41 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
   const tab = router.tab.value;
   const me = session.localMember.value;
 
-  if (top !== null) {
-    return (
-      <div class="mx-auto min-h-dvh max-w-[480px]">
-        {/* A chave pela profundidade remonta a tela a cada pop: duas desconhecidas
-            seguidas reaproveitariam a instancia e o efeito de voltar nao rodaria. */}
-        <Fragment key={router.stack.value.length}>{renderScreen(top, ctx)}</Fragment>
-        {banner}
-        {toast}
-      </div>
-    );
-  }
-
+  // Um so retorno com o toast e o aviso na mesma posicao: com dois ramos, a
+  // regiao viva do toast remontava a cada push/pop e renascia ja com texto.
   return (
     <div class="mx-auto min-h-dvh max-w-[480px]">
-      <main class="no-scrollbar px-[22px] pt-11 pb-[110px]">
-        {tab === "home" ? (
-          <div class="flex items-center justify-between">
+      {top !== null ? (
+        // A chave pela profundidade remonta a tela a cada pop: duas desconhecidas
+        // seguidas reaproveitariam a instancia e o efeito de voltar nao rodaria.
+        <Fragment key={router.stack.value.length}>{renderScreen(top, ctx)}</Fragment>
+      ) : (
+        <main class="no-scrollbar px-[22px] pt-11 pb-[110px]">
+          {tab === "home" ? (
+            <div class="flex items-center justify-between">
+              <h1 class="text-[36px]">{TITLES[tab]}</h1>
+              <button
+                type="button"
+                aria-label="Ajustes"
+                class="rounded-pill"
+                onClick={() => router.push({ kind: "settings" })}
+              >
+                {/* Sem a linha do morador (apagada no sync), o botao fica: "Sair da casa" mora nos Ajustes. */}
+                {me !== null ? (
+                  <Avatar name={me.name} color={me.color} photo={me.photo} size={40} />
+                ) : (
+                  <Avatar name="" color="cacau" photo={null} size={40} />
+                )}
+              </button>
+            </div>
+          ) : (
             <h1 class="text-[36px]">{TITLES[tab]}</h1>
-            <button
-              type="button"
-              aria-label="Ajustes"
-              class="rounded-pill"
-              onClick={() => router.push({ kind: "settings" })}
-            >
-              {/* Sem a linha do morador (apagada no sync), o botao fica: "Sair da casa" mora nos Ajustes. */}
-              {me !== null ? (
-                <Avatar name={me.name} color={me.color} photo={me.photo} size={40} />
-              ) : (
-                <Avatar name="" color="cacau" photo={null} size={40} />
-              )}
-            </button>
-          </div>
-        ) : (
-          <h1 class="text-[36px]">{TITLES[tab]}</h1>
-        )}
-      </main>
+          )}
+        </main>
+      )}
       {banner}
       {toast}
-      <TabBar active={tab} onSelect={router.selectTab} onScan={() => {}} />
+      {top === null && <TabBar active={tab} onSelect={router.selectTab} onScan={() => {}} />}
     </div>
   );
 }

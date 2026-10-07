@@ -16,6 +16,9 @@ export interface SheetProps {
 export function Sheet({ open, label, onClose, children }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLElement | null>(null);
+  // Fechamento pedido pela prop: o pai ja sabe, entao o `close` nativo que vem
+  // dele nao chama onClose de novo.
+  const closingFromProp = useRef(false);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -26,10 +29,14 @@ export function Sheet({ open, label, onClose, children }: SheetProps) {
       opener.current = document.activeElement as HTMLElement | null;
       dialog.showModal();
     }
-    if (!open && dialog.open) dialog.close();
+    if (!open && dialog.open) {
+      closingFromProp.current = true;
+      dialog.close();
+    }
   }, [open]);
 
-  // Roda no `close` nativo, que vem tanto do Esc quanto do `close()` acima.
+  // Caminho unico de fechamento: Esc, backdrop e a prop passam todos pelo
+  // `close` nativo, e o onClose sai uma vez so (nenhuma, se veio da prop).
   function handleClose() {
     const dialog = ref.current;
     const back = opener.current;
@@ -40,6 +47,10 @@ export function Sheet({ open, label, onClose, children }: SheetProps) {
     const active = document.activeElement;
     const lost = active === null || active === document.body || (dialog?.contains(active) ?? false);
     if (back?.isConnected && lost) back.focus();
+    if (closingFromProp.current) {
+      closingFromProp.current = false;
+      return;
+    }
     onClose();
   }
 
@@ -55,11 +66,11 @@ export function Sheet({ open, label, onClose, children }: SheetProps) {
       onClose={handleClose}
       onClick={(event) => {
         // O alvo so e o proprio dialog quando o clique caiu fora do painel.
-        if (event.target === ref.current) onClose();
+        if (event.target === ref.current) ref.current?.close();
       }}
       class="m-0 mx-auto mt-auto w-full max-w-[480px] bg-transparent p-0 backdrop:bg-neutral-900/45"
     >
-      <div class="sheet-enter rounded-t-[36px] bg-bg px-5 pt-[10px] pb-7 shadow-lg">
+      <div class="sheet-enter no-scrollbar max-h-[85dvh] overflow-y-auto rounded-t-[36px] bg-bg px-5 pt-[10px] pb-7 shadow-lg">
         <div
           aria-hidden="true"
           class="mx-auto mb-[14px] h-[5px] w-11 rounded-pill bg-neutral-300"

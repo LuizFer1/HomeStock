@@ -15,17 +15,25 @@ export interface LongPress {
     onPointerCancel: () => void;
     onContextMenu: (e: Event) => void;
   };
-  /** true uma vez depois de um long-press: o click que segue deve ser ignorado. */
-  consumeClick: () => boolean;
+  /**
+   * true uma vez depois de um long-press: o click que segue deve ser ignorado.
+   * Click do teclado (`detail` 0) nunca e engolido.
+   */
+  consumeClick: (e: MouseEvent) => boolean;
 }
 
 /**
  * Segurar 450 ms (handoff, "Interactions & Behavior"). O clique direito e a
  * tecla de menu chegam como `contextmenu` e abrem na hora.
+ *
+ * Quem usa precisa por `select-none` e `[-webkit-touch-callout:none]` no alvo:
+ * sem isso o navegador seleciona o texto ou abre o menu do link no meio da
+ * pressao, e o gesto briga com o do sistema.
  */
 export function useLongPress(onLongPress: () => void): LongPress {
   const [pressing, setPressing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const origin = useRef<{ x: number; y: number } | null>(null);
   const fired = useRef(false);
   // A callback mais nova, sem reiniciar uma pressao em curso a cada render.
@@ -39,22 +47,53 @@ export function useLongPress(onLongPress: () => void): LongPress {
     }
   }
 
+  function clearSettle() {
+    if (settle.current !== null) {
+      clearTimeout(settle.current);
+      settle.current = null;
+    }
+  }
+
   function cancel() {
     clearTimer();
     origin.current = null;
     setPressing(false);
   }
 
+  // O click do soltar chega no mesmo ciclo do pointerup. Se nao chegou ate o
+  // proximo ciclo (o sheet abriu por cima e o click caiu nele), a marca morre
+  // aqui, senao engoliria o proximo toque ou Enter no card.
+  function release() {
+    cancel();
+    if (!fired.current) return;
+    clearSettle();
+    settle.current = setTimeout(() => {
+      settle.current = null;
+      fired.current = false;
+    }, 0);
+  }
+
   // Desmontar no meio da pressao (lista que mudou) nao pode disparar depois.
-  useEffect(() => clearTimer, []);
+  useEffect(
+    () => () => {
+      clearTimer();
+      clearSettle();
+    },
+    [],
+  );
 
   return {
     pressing,
     handlers: {
       onPointerDown(e) {
+        // Segundo dedo e pinca ou gesto do sistema, nao segurar o card.
+        if (!e.isPrimary) {
+          cancel();
+          return;
+        }
         if (e.button !== 0) return;
-        // Pressao nova: um disparo antigo sem click depois (dedo saiu do card)
-        // nao pode engolir este toque.
+        // Pressao nova: um disparo antigo sem click depois nao pode engolir este toque.
+        clearSettle();
         fired.current = false;
         // Toque captura o ponteiro no alvo e, com captura, o `pointerleave`
         // nunca dispara. Encadeamento opcional porque o happy-dom nao tem a API.
@@ -80,9 +119,9 @@ export function useLongPress(onLongPress: () => void): LongPress {
         if (start === null) return;
         if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > MOVE_TOLERANCE_PX) cancel();
       },
-      onPointerUp: cancel,
-      onPointerLeave: cancel,
-      onPointerCancel: cancel,
+      onPointerUp: release,
+      onPointerLeave: release,
+      onPointerCancel: release,
       onContextMenu(e) {
         e.preventDefault();
         // O Android manda `contextmenu` depois do nosso timer: ja abrimos.
@@ -95,10 +134,12 @@ export function useLongPress(onLongPress: () => void): LongPress {
         callback.current();
       },
     },
-    consumeClick() {
+    consumeClick(e) {
       const was = fired.current;
       fired.current = false;
-      return was;
+      clearSettle();
+      // Enter ou Espaco no card nunca vem de um long-press.
+      return was && e.detail !== 0;
     },
   };
 }
