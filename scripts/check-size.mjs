@@ -13,11 +13,14 @@ import { gzipSync } from "node:zlib";
  *   55kb  — fatia 2: o Dexie entra no bundle com o repositorio aberto no main.tsx,
  *           mais a sessao com signals (48.84kb medidos). Os 6.16kb de folga sao
  *           deliberados: onboarding, ajustes e CSV ainda entram nesta fatia.
+ *   65kb  — fatia 2, Ajustes: tela de ajustes, edicao de perfil e linhas editaveis
+ *           (56.02kb medidos: 51.59kb JS + 4.43kb CSS), ainda faltam categorias e
+ *           locais, CSV e sair da casa.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact.
  */
-export const LIMIT_BYTES = 55 * 1024;
+export const LIMIT_BYTES = 65 * 1024;
 
 /**
  * Teto das fontes woff2. Ja vem comprimidas, gzip nao as reduz; medidas a parte
