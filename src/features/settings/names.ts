@@ -1,4 +1,6 @@
-export const MAX_PLACE_NAME = 40;
+import { MAX_PLACE_NAME } from "../../domain/model/place-name";
+
+export { MAX_PLACE_NAME };
 
 function key(s: string): string {
   return s

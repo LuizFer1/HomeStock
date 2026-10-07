@@ -7,6 +7,7 @@ import type { Category, Item, Location } from "../domain/model/item";
 import type { ListExtra } from "../domain/model/list-extra";
 import { type Member, type MemberDraft, normalizeMemberDraft } from "../domain/model/member";
 import type { Movement, MovementReason, Price } from "../domain/model/movement";
+import { normalizePlaceName } from "../domain/model/place-name";
 import {
   normalizePref,
   type PrefKey,
@@ -369,9 +370,10 @@ export async function openRepository(deps: RepositoryDeps) {
   /** Categoria e local tem a mesma forma: so o nome. */
   async function upsertNamed<T extends Category | Location>(
     table: Table<T, string>,
-    name: string,
+    rawName: string,
     id?: Ulid,
   ): Promise<T> {
+    const name = normalizePlaceName(rawName);
     return db.transaction("rw", table, db.meta, async () => {
       const s = await stamp();
       const existing = id === undefined ? undefined : await table.get(id);

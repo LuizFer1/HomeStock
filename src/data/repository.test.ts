@@ -171,6 +171,20 @@ describe("comandos", () => {
   });
 });
 
+describe("nomes de categoria e local", () => {
+  it("apara o nome e rejeita vazio ou com 41 letras sem gravar", async () => {
+    const { db, repo } = await openTestRepository();
+    expect((await repo.upsertCategory("  Pet ")).name).toBe("Pet");
+    expect((await repo.upsertLocation(" Quarto ")).name).toBe("Quarto");
+    const cats = await db.categories.count();
+    const locs = await db.locations.count();
+    await expect(repo.upsertCategory("  ")).rejects.toThrow("Dê um nome.");
+    await expect(repo.upsertLocation("a".repeat(41))).rejects.toThrow("Use até 40 letras.");
+    expect(await db.categories.count()).toBe(cats);
+    expect(await db.locations.count()).toBe(locs);
+  });
+});
+
 describe("morador local", () => {
   it("localMemberId e null num banco novo", async () => {
     const { repo } = await openTestRepository();
