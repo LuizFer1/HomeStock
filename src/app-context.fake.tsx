@@ -42,6 +42,7 @@ export function testContext(
     stock: createStockStore(),
     today: () => "2026-10-06",
     processAvatar: async () => "data:image/webp;base64,AAA",
+    processItemPhoto: async () => "data:image/webp;base64,AAA",
     onLeave: async () => {},
     ...overrides,
   };

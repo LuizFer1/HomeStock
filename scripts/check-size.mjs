@@ -19,7 +19,9 @@ import { gzipSync } from "node:zlib";
  *           em 59.15kb (54.67kb JS + 4.48kb CSS), 5.85kb de folga.
  *   75kb  — fatia 3, Estoque: lista com busca, filtros, cards com long-press,
  *           action sheet e toast com desfazer (65.10kb medidos: 59.43kb JS +
- *           5.67kb CSS). Detalhe e formulario de item ainda entram nesta fatia.
+ *           5.67kb CSS). Detalhe e formulario de item entraram depois, sem elevar
+ *           o teto: medida final da fatia 3 em 69.17kb (63.25kb JS + 5.91kb CSS),
+ *           5.83kb de folga.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact.

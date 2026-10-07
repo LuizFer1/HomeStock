@@ -53,6 +53,8 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
   }
 
   const top = router.top.value;
+  // A fatia 4 troca o destino para o scanner, que abre o mesmo formulario.
+  const openNewItem = () => router.push({ kind: "item-new" });
   const tab = router.tab.value;
   const me = session.localMember.value;
 
@@ -93,7 +95,7 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
       )}
       {banner}
       {toast}
-      {top === null && <TabBar active={tab} onSelect={router.selectTab} onScan={() => {}} />}
+      {top === null && <TabBar active={tab} onSelect={router.selectTab} onScan={openNewItem} />}
     </div>
   );
 }

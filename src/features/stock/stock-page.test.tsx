@@ -12,7 +12,10 @@ import { LONG_PRESS_MS } from "../ui/long-press";
 import { StockPage } from "./stock-page";
 
 /** O Estoque nao usa o stepper; os fakes de `items` so precisam do tipo completo. */
-const NO_STEP: Pick<ItemStore, "step" | "undo"> = {
+// Comandos que a pagina do Estoque nao usa: so remove e restore variam por teste.
+const NO_STEP: Pick<ItemStore, "create" | "save" | "step" | "undo"> = {
+  create: () => Promise.reject(new Error("nao usado")),
+  save: () => Promise.reject(new Error("nao usado")),
   step: () => Promise.reject(new Error("nao usado")),
   undo: async () => {},
 };

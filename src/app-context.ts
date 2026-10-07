@@ -21,5 +21,7 @@ export interface AppContext {
   today: () => string;
   /** Pipeline da foto de perfil (o antigo `processFile`). */
   processAvatar: (file: Blob) => Promise<string>;
+  /** Pipeline da foto de item (ITEM_PHOTO). */
+  processItemPhoto: (file: Blob) => Promise<string>;
   onLeave: () => Promise<void>;
 }

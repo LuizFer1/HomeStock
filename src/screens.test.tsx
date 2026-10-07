@@ -47,6 +47,38 @@ describe("renderScreen", () => {
     await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
   });
 
+  it("item-new mostra o formulario de criar", async () => {
+    const { ctx } = await setup();
+    ctx.router.push({ kind: "item-new" });
+    render(renderScreen({ kind: "item-new" }, ctx));
+    expect(screen.getByRole("heading", { level: 1, name: "Novo item" })).toBeTruthy();
+  });
+
+  it("item-edit mostra o formulario com o item", async () => {
+    const { ctx } = await setup();
+    const item = await ctx.session.run((repo) => repo.createItem(cafe(), 2));
+    ctx.router.push({ kind: "item-edit", id: item.id });
+    render(renderScreen({ kind: "item-edit", id: item.id }, ctx));
+    expect(screen.getByRole("heading", { level: 1, name: "Editar item" })).toBeTruthy();
+    expect((screen.getByLabelText("Nome") as HTMLInputElement).value).toBe("Café em grãos");
+  });
+
+  it("item-edit sem id volta", async () => {
+    const { ctx, history } = await setup();
+    ctx.router.push({ kind: "item-edit" });
+    render(renderScreen({ kind: "item-edit" }, ctx));
+    await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
+  });
+
+  it("item-edit de item apagado volta", async () => {
+    const { ctx, history } = await setup();
+    const item = await ctx.session.run((repo) => repo.createItem(cafe(), 2));
+    await ctx.session.run((repo) => repo.deleteItem(item.id));
+    ctx.router.push({ kind: "item-edit", id: item.id });
+    render(renderScreen({ kind: "item-edit", id: item.id }, ctx));
+    await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
+  });
+
   it("tela desconhecida volta", async () => {
     const { ctx, history } = await setup();
     ctx.router.push({ kind: "nada" });

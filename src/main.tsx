@@ -6,7 +6,7 @@ import { HomeStockDb } from "./data/db";
 import { cryptoRandomChunk } from "./domain/ids/ulid";
 import { createItemStore } from "./features/item/store";
 import { createOnboardingStore } from "./features/onboarding/store";
-import { AVATAR_PHOTO, processPhoto } from "./features/photo/photo";
+import { AVATAR_PHOTO, ITEM_PHOTO, processPhoto } from "./features/photo/photo";
 import { browserPhotoDeps } from "./features/photo/photo-canvas";
 import { createSession } from "./features/session/session";
 import { localToday } from "./features/session/today";
@@ -93,6 +93,7 @@ const ctx: AppContext = {
   stock: createStockStore(),
   today: () => localToday(),
   processAvatar: (file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO),
+  processItemPhoto: (file) => processPhoto(file, browserPhotoDeps, ITEM_PHOTO),
   onLeave: () =>
     resetDevice({
       db,

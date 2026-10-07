@@ -207,6 +207,20 @@ describe("App", () => {
     expect(router.stack.value).toEqual([]);
   });
 
+  it("Escanear abre Novo item e o item salvo aparece no Estoque", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { router } = setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Escanear" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Novo item" })).toBeTruthy();
+    expect(router.stack.value.map((s) => s.kind)).toEqual(["item-new"]);
+    fireEvent.input(screen.getByLabelText("Nome"), { target: { value: "Arroz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar 1 un" }));
+    expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
+    expect(router.stack.value).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Estoque" }));
+    expect(await screen.findByText("Arroz", { selector: "[data-item-id] *" })).toBeTruthy();
+  });
+
   it("o toast aparece na aba e numa tela empilhada", async () => {
     const { session } = await openTestSession({ member: ANA });
     const { ctx } = setup(session);
