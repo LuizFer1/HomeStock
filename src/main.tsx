@@ -10,6 +10,7 @@ import { createSession } from "./features/session/session";
 import { localToday } from "./features/session/today";
 import { downloadText } from "./features/settings/download";
 import { type ResetDeps, resetDevice } from "./features/settings/reset";
+import { scopeResetDeps } from "./features/settings/reset-scope";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import { createUpdateStore, type SwContainer } from "./features/update/store";
@@ -80,12 +81,16 @@ render(
     onLeave={() =>
       resetDevice({
         db,
-        // `typeof`: em contexto sandbox so referenciar `caches` ou `navigator.serviceWorker` lanca.
-        caches: typeof caches === "undefined" ? undefined : caches,
-        serviceWorker:
-          typeof navigator === "undefined" || !("serviceWorker" in navigator)
-            ? undefined
-            : (navigator.serviceWorker as ResetDeps["serviceWorker"]),
+        // Mesma origem do HomeFinance: so o que e deste app (ver reset-scope.ts).
+        ...scopeResetDeps({
+          // `typeof`: em contexto sandbox so referenciar `caches` ou `navigator.serviceWorker` lanca.
+          caches: typeof caches === "undefined" ? undefined : caches,
+          serviceWorker:
+            typeof navigator === "undefined" || !("serviceWorker" in navigator)
+              ? undefined
+              : (navigator.serviceWorker as ResetDeps["serviceWorker"]),
+          scope: new URL(import.meta.env.BASE_URL, window.location.href).href,
+        }),
         reload: () => window.location.reload(),
       })
     }

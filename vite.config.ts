@@ -59,6 +59,8 @@ export default defineConfig({
         icons: MANIFEST_ICONS,
       },
       workbox: {
+        // Mesma origem do HomeFinance: o prefixo deixa o reset achar so os caches deste app.
+        cacheId: "homestock",
         clientsClaim: true,
         navigateFallback: `${BASE}index.html`,
         globPatterns: ["**/*.{js,css,html,png,svg,ico,webp,woff2}"],

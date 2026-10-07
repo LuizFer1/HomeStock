@@ -68,4 +68,30 @@ describe("resetDevice", () => {
     await expect(resetDevice({ db, reload })).rejects.toThrow("banco bloqueado");
     expect(reload).not.toHaveBeenCalled();
   });
+
+  it("apaga o banco antes de tocar em caches e service workers", async () => {
+    const order: string[] = [];
+    const db = {
+      delete: vi.fn(async () => {
+        order.push("db");
+      }),
+    };
+    const caches = {
+      keys: vi.fn(async () => {
+        order.push("caches");
+        return [];
+      }),
+      delete: vi.fn(),
+    };
+    const serviceWorker = {
+      getRegistrations: vi.fn(async () => {
+        order.push("sw");
+        return [];
+      }),
+    };
+    await resetDevice({ db, caches, serviceWorker, reload: vi.fn() });
+    expect(order[0]).toBe("db");
+    expect(order).toContain("caches");
+    expect(order).toContain("sw");
+  });
 });
