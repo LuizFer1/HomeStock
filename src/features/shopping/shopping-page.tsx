@@ -1,4 +1,4 @@
-import type { JSX } from "preact";
+import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useId, useMemo, useRef, useState } from "preact/hooks";
 import type { AppContext } from "../../app-context";
 import type { Member } from "../../domain/model/member";
@@ -12,9 +12,13 @@ import { describeError } from "../session/session";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { ErrorText } from "../ui/error-text";
+import { Sheet } from "../ui/sheet";
+import { AdjustSheet } from "./adjust-sheet";
+import { ExtraField } from "./extra-field";
 import {
   checkoutMessage,
   entryMeta,
+  entryTitle,
   footerLabel,
   householdAvatars,
   progressLabel,
@@ -33,9 +37,12 @@ interface SectionProps {
   entries: readonly ShoppingEntry[];
   members: readonly Member[];
   onToggle: (entry: ShoppingEntry) => void;
+  onAdjust: (entry: ShoppingEntry) => void;
+  /** Depois das linhas (o campo de pedido). */
+  children?: ComponentChildren;
 }
 
-function Section({ title, tone, entries, members, onToggle }: SectionProps) {
+function Section({ title, tone, entries, members, onToggle, onAdjust, children }: SectionProps) {
   const id = useId();
   return (
     <section aria-labelledby={id}>
@@ -45,16 +52,20 @@ function Section({ title, tone, entries, members, onToggle }: SectionProps) {
       >
         {title}
       </h2>
-      <div class="flex flex-col gap-2">
-        {entries.map((entry) => (
-          <ShoppingRow
-            key={entry.key}
-            entry={entry}
-            meta={entryMeta(entry, members)}
-            onToggle={() => onToggle(entry)}
-          />
-        ))}
-      </div>
+      {entries.length > 0 && (
+        <div class="flex flex-col gap-2">
+          {entries.map((entry) => (
+            <ShoppingRow
+              key={entry.key}
+              entry={entry}
+              meta={entryMeta(entry, members)}
+              onToggle={() => onToggle(entry)}
+              onAdjust={() => onAdjust(entry)}
+            />
+          ))}
+        </div>
+      )}
+      {children}
     </section>
   );
 }
@@ -86,6 +97,14 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
   // Conta cada falha: a mesma mensagem duas vezes ainda precisa mover o foco.
   const [failures, setFailures] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [adjustingKey, setAdjustingKey] = useState<string | null>(null);
+  // Procurada a cada render: linha restocada ou removida por fora fecha o sheet sozinho.
+  const adjusting =
+    adjustingKey === null
+      ? undefined
+      : [...list.auto, ...list.house].find((e) => e.key === adjustingKey);
+  // So depois de o dialog fechar o resto da pagina aceita foco (enquanto modal e inerte).
+  const focusHeading = useRef(false);
 
   // Ref e nao estado: dois toques no mesmo render leem o mesmo `busy` velho.
   const submitting = useRef(false);
@@ -102,6 +121,18 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
     },
     [],
   );
+
+  useEffect(() => {
+    if (adjustingKey !== null && adjusting === undefined) {
+      setAdjustingKey(null);
+      focusHeading.current = true;
+    }
+    // Os efeitos do Sheet (filho) rodam antes deste: o `close` ja aconteceu.
+    if (focusHeading.current && adjusting === undefined) {
+      focusHeading.current = false;
+      heading.current?.focus();
+    }
+  });
 
   useEffect(() => {
     if (failures > 0) errorBox.current?.focus();
@@ -209,17 +240,19 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
             entries={list.auto}
             members={data.members}
             onToggle={onToggle}
+            onAdjust={(e) => setAdjustingKey(e.key)}
           />
         )}
-        {list.house.length > 0 && (
-          <Section
-            title="Pedidos da casa"
-            tone="text-accent-2-700"
-            entries={list.house}
-            members={data.members}
-            onToggle={onToggle}
-          />
-        )}
+        <Section
+          title="Pedidos da casa"
+          tone="text-accent-2-700"
+          entries={list.house}
+          members={data.members}
+          onToggle={onToggle}
+          onAdjust={(e) => setAdjustingKey(e.key)}
+        >
+          <ExtraField ctx={ctx} />
+        </Section>
 
         {list.total === 0 && (
           <div class="mt-4 rounded-[24px] bg-surface p-4">
@@ -239,6 +272,25 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
           </div>
         )}
       </main>
+
+      <Sheet
+        open={adjusting !== undefined}
+        label={adjusting === undefined ? "Ajustar" : `Ajustar ${entryTitle(adjusting)}`}
+        onClose={() => setAdjustingKey(null)}
+      >
+        {adjusting !== undefined && (
+          <AdjustSheet
+            key={adjusting.key}
+            ctx={ctx}
+            entry={adjusting}
+            onClose={() => setAdjustingKey(null)}
+            onGone={() => {
+              focusHeading.current = true;
+              setAdjustingKey(null);
+            }}
+          />
+        )}
+      </Sheet>
 
       {list.total > 0 && (
         // Flutua sobre a lista acima da tab bar (18 + 68 + 14 px); o `pb` do main deixa a

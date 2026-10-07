@@ -65,7 +65,9 @@ describe("ShoppingPage", () => {
     expect(boxes.map((b) => b.getAttribute("aria-label"))).toEqual([SABAO, CAFE]);
     expect(screen.getByText("1 un · Esgotado")).toBeTruthy();
     expect(screen.getByText("3 pct · Abaixo do mínimo")).toBeTruthy();
-    expect(screen.queryByText("Pedidos da casa")).toBeNull();
+    // A secao dos pedidos e o campo existem sempre, mesmo sem pedido.
+    expect(screen.getByRole("heading", { level: 2, name: "Pedidos da casa" })).toBeTruthy();
+    expect(screen.getByLabelText("Novo pedido da casa")).toBeTruthy();
     const section = screen.getByRole("region", { name: "Gerados pelo estoque" });
     expect(within(section).getAllByRole("checkbox")).toHaveLength(2);
   });
@@ -282,5 +284,106 @@ describe("ShoppingPage", () => {
     await setup();
     const group = screen.getByRole("group", { name: "Moradores" });
     expect(within(group).getByRole("img", { name: "Ana" })).toBeTruthy();
+  });
+
+  it("pedidos da casa e o campo aparecem com a lista vazia", async () => {
+    await setup();
+    expect(screen.getByRole("heading", { level: 2, name: "Pedidos da casa" })).toBeTruthy();
+    expect(screen.getByLabelText("Novo pedido da casa")).toBeTruthy();
+    expect(screen.getByText("Nada para comprar.")).toBeTruthy();
+  });
+
+  it("adicionar pelo campo poe a linha na secao e o rodape", async () => {
+    await setup();
+    const input = screen.getByLabelText("Novo pedido da casa") as HTMLInputElement;
+    input.value = "Banana";
+    fireEvent.input(input);
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar pedido" }));
+    const section = await screen.findByRole("region", { name: "Pedidos da casa" });
+    await waitFor(() =>
+      expect(
+        within(section).getByRole("checkbox", { name: "Banana, 1 · pedido por Ana" }),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByRole("button", { name: "Repor estoque" })).toBeTruthy();
+    expect(screen.queryByText("Nada para comprar.")).toBeNull();
+  });
+
+  it("o botao de preco abre o Ajustar; salvar atualiza meta, preco e total, e repor leva o preco", async () => {
+    const { session } = await setup(async (s) => {
+      await s.run((r) => r.createItem(cafe(), 1, 4290));
+    });
+    const id = cafeId(session);
+    const opener = screen.getByRole("button", { name: /^Ajustar Café em grãos Torrado 1 kg/ });
+    // O toque de verdade foca o botao; o Sheet devolve o foco a ele ao fechar.
+    opener.focus();
+    fireEvent.click(opener);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ajustar Café em grãos Torrado 1 kg",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Diminuir Quantidade" }));
+    const price = within(dialog).getByLabelText("Preço unitário") as HTMLInputElement;
+    price.value = "4290";
+    fireEvent.input(price);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+    expect(await screen.findByText("2 pct · Abaixo do mínimo")).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: (n) => n.replaceAll(" ", " ") === "Ajustar Café em grãos Torrado 1 kg, R$ 85,80",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("R$ 85,80", { selector: "p" })).toBeTruthy();
+    // O sheet fechou e o foco volta ao botao que o abriu.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: /^Ajustar Café em grãos Torrado 1 kg/ }),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /^Café em grãos/ }));
+    await waitFor(() => expect(repor().disabled).toBe(false));
+    const pricesBefore = session.data.value.prices.length;
+    fireEvent.click(repor());
+    expect(await screen.findByText("Guardou 2 pct de Café em grãos")).toBeTruthy();
+    const data = session.data.value;
+    expect(quantities(data.movements).get(id)).toBe(3);
+    const added = data.prices.slice(pricesBefore);
+    expect(added.map((p) => [p.unitPriceMinor, p.qty])).toEqual([[4290, 2]]);
+  });
+
+  it("remover um pedido pelo sheet fecha, foca o titulo e o Desfazer devolve", async () => {
+    await setup(async (s) => {
+      await s.run((r) => r.addListExtra("Banana"));
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Ajustar Banana/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Ajustar Banana" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remover da lista" }));
+    expect(await screen.findByText("Banana saiu da lista")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { level: 1, name: "Compras" }),
+      ),
+    );
+    expect(screen.queryByRole("checkbox", { name: /^Banana/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    expect(await screen.findByRole("checkbox", { name: /^Banana/ })).toBeTruthy();
+  });
+
+  it("linha que some por fora com o sheet aberto fecha o sheet e foca o titulo", async () => {
+    const { session } = await setup(async (s) => {
+      await s.run((r) => r.createItem(cafe(), 1));
+    });
+    const id = cafeId(session);
+    fireEvent.click(screen.getByRole("button", { name: /^Ajustar Café em grãos/ }));
+    await screen.findByRole("dialog", { name: "Ajustar Café em grãos Torrado 1 kg" });
+    await session.run((r) => r.restock(id, 5));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { level: 1, name: "Compras" }),
+      ),
+    );
   });
 });

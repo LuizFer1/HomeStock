@@ -30,9 +30,16 @@ function entry(overrides: Partial<ShoppingEntry> = {}): ShoppingEntry {
   };
 }
 
+// formatMoney usa espaco duro: normaliza para comparar o nome com o texto visivel.
+function adjustButton(name: string): HTMLElement {
+  return screen.getByRole("button", {
+    name: (accessible) => accessible.replaceAll(" ", " ") === name,
+  });
+}
+
 describe("ShoppingRow", () => {
   it("desmarcada: checkbox com o nome e a meta, sem o check", () => {
-    render(<ShoppingRow entry={entry()} meta={META} onToggle={() => {}} />);
+    render(<ShoppingRow entry={entry()} meta={META} onToggle={() => {}} onAdjust={() => {}} />);
     const box = screen.getByRole("checkbox", { name: NAME });
     expect(box.getAttribute("aria-checked")).toBe("false");
     expect(box.querySelector("svg")).toBeNull();
@@ -42,7 +49,14 @@ describe("ShoppingRow", () => {
   });
 
   it("marcada: aria-checked, opacidade e nome riscado", () => {
-    render(<ShoppingRow entry={entry({ checked: true })} meta={META} onToggle={() => {}} />);
+    render(
+      <ShoppingRow
+        entry={entry({ checked: true })}
+        meta={META}
+        onToggle={() => {}}
+        onAdjust={() => {}}
+      />,
+    );
     const box = screen.getByRole("checkbox", { name: NAME });
     expect(box.getAttribute("aria-checked")).toBe("true");
     expect(box.querySelector("svg")).not.toBeNull();
@@ -52,20 +66,50 @@ describe("ShoppingRow", () => {
 
   it("o clique chama onToggle", () => {
     const onToggle = vi.fn();
-    render(<ShoppingRow entry={entry()} meta={META} onToggle={onToggle} />);
+    render(<ShoppingRow entry={entry()} meta={META} onToggle={onToggle} onAdjust={() => {}} />);
     fireEvent.click(screen.getByRole("checkbox", { name: NAME }));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it("preco digitado mostra o total da linha", () => {
-    render(<ShoppingRow entry={entry({ priceMinor: 4290 })} meta={META} onToggle={() => {}} />);
+  it("preco digitado mostra o total da linha no botao Ajustar", () => {
+    render(
+      <ShoppingRow
+        entry={entry({ priceMinor: 4290 })}
+        meta={META}
+        onToggle={() => {}}
+        onAdjust={() => {}}
+      />,
+    );
     const price = screen.getByText("R$ 128,70");
-    expect(price.getAttribute("aria-hidden")).toBe("true");
     expect(price.className).not.toContain("text-neutral-700");
+    expect(adjustButton("Ajustar Café em grãos Torrado 1 kg, R$ 128,70")).toBeTruthy();
   });
 
   it("preco estimado leva til e neutral-700", () => {
-    render(<ShoppingRow entry={entry({ estimateMinor: 3990 })} meta={META} onToggle={() => {}} />);
+    render(
+      <ShoppingRow
+        entry={entry({ estimateMinor: 3990 })}
+        meta={META}
+        onToggle={() => {}}
+        onAdjust={() => {}}
+      />,
+    );
     expect(screen.getByText("~R$ 119,70").className).toContain("text-neutral-700");
+    expect(adjustButton("Ajustar Café em grãos Torrado 1 kg, ~R$ 119,70")).toBeTruthy();
+  });
+
+  it("sem preco o botao mostra Preço e o nome o contem", () => {
+    render(<ShoppingRow entry={entry()} meta={META} onToggle={() => {}} onAdjust={() => {}} />);
+    const button = adjustButton("Ajustar Café em grãos Torrado 1 kg, Preço");
+    expect(button.textContent?.replace("Ajustar Café em grãos Torrado 1 kg,", "")).toBe("Preço");
+  });
+
+  it("o botao Ajustar chama onAdjust e nao onToggle", () => {
+    const onToggle = vi.fn();
+    const onAdjust = vi.fn();
+    render(<ShoppingRow entry={entry()} meta={META} onToggle={onToggle} onAdjust={onAdjust} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Ajustar Café/ }));
+    expect(onAdjust).toHaveBeenCalledTimes(1);
+    expect(onToggle).not.toHaveBeenCalled();
   });
 });
