@@ -1,28 +1,17 @@
 import type { VNode } from "preact";
-import { useEffect } from "preact/hooks";
 import type { AppContext } from "./app-context";
 import { ItemDetailPage } from "./features/item/detail-page";
 import { MemberWizard } from "./features/onboarding/member-wizard";
 import { PlacesPage } from "./features/settings/places-page";
 import { SettingsPage } from "./features/settings/settings-page";
 import { closeIfStill, type Screen } from "./features/shell/route";
+import { UnknownScreen } from "./features/shell/unknown-screen";
 
 export type ScreenRender = (screen: Screen, ctx: AppContext) => VNode | null;
 
 interface ScreenProps {
   ctx: AppContext;
   screen: Screen;
-}
-
-/**
- * Tela que esta versao nao conhece (historico velho, link antigo): volta em
- * vez de prender o app numa tela em branco.
- */
-export function UnknownScreen({ onBack }: { onBack: () => void }) {
-  useEffect(() => {
-    onBack();
-  }, [onBack]);
-  return null;
 }
 
 function SettingsScreen({ ctx }: ScreenProps) {

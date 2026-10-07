@@ -8,8 +8,8 @@ import { isPhotoDataUrl } from "../../domain/model/member";
 import { consumptionOf } from "../../domain/projections/consumption";
 import { quantities, statusOf } from "../../domain/projections/stock";
 import { lastPriceOf } from "../../domain/projections/value";
-import { UnknownScreen } from "../../screens";
 import { describeError } from "../session/session";
+import { UnknownScreen } from "../shell/unknown-screen";
 import { BTN_BASE } from "../ui/button";
 import { ErrorText } from "../ui/error-text";
 import {
@@ -30,8 +30,11 @@ export interface ItemDetailPageProps {
 }
 
 // Botoes do hero: fundo `bg` e borda transparente sobre a foto (markup 2c).
-const HERO_BTN = "border border-transparent bg-bg text-text";
-const STEP = "grid size-14 shrink-0 place-items-center rounded-full";
+// Hover opaco (neutral) e nao translucido: sobre a foto, um fundo /7% deixaria a imagem vazar.
+const HERO_BTN =
+  "border border-transparent bg-bg text-text hover:bg-neutral-100 active:bg-neutral-200";
+const STEP =
+  "grid size-14 shrink-0 place-items-center rounded-full disabled:cursor-not-allowed disabled:opacity-45";
 
 /** Proximo quadro, com queda para setTimeout onde nao ha rAF. */
 function nextFrame(run: () => void): void {
@@ -73,7 +76,10 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
 
   const item = data.items.find((i) => i.id === id && isAlive(i));
   const q = item === undefined ? 0 : (quantities(data.movements).get(id) ?? 0);
-  const shown = Math.max(0, q) + pending;
+  // Entre gravar e o fim do toque, o snapshot novo ja tem o movimento e o
+  // pendente ainda o conta: a soma dobra por um instante. Um uso em dobro nao
+  // pode mostrar negativo.
+  const shown = Math.max(0, Math.max(0, q) + pending);
 
   useEffect(() => {
     heading.current?.focus();
@@ -183,7 +189,7 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
             ref={minusBtn}
             disabled={shown <= 0}
             onClick={() => step(-1)}
-            class={`${STEP} bg-bg text-text disabled:cursor-not-allowed disabled:opacity-45`}
+            class={`${STEP} bg-bg text-text hover:bg-neutral-100 active:bg-neutral-200`}
           >
             <Minus size={22} strokeWidth={2.75} />
           </button>
@@ -198,7 +204,7 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
             aria-label="Adicionar um"
             ref={plusBtn}
             onClick={() => step(1)}
-            class={`${BTN_BASE} ${STEP} bg-accent text-bg hover:bg-accent-600 active:bg-accent-700`}
+            class={`${STEP} bg-accent text-bg hover:bg-accent-600 active:bg-accent-700`}
           >
             <Plus size={22} strokeWidth={2.75} />
           </button>

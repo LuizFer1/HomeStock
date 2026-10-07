@@ -47,7 +47,7 @@ async function setup(options: SetupOptions = {}) {
   await options.prepare?.(session, item, clock);
   const { ctx, history } = testContext(session, options.overrides?.(session));
   ctx.router.push({ kind: "item", id: item.id });
-  render(
+  const view = render(
     <>
       <ItemDetailPage ctx={ctx} id={item.id} />
       <ToastView store={ctx.toast} raised={false} />
@@ -55,7 +55,7 @@ async function setup(options: SetupOptions = {}) {
   );
   const moves = (reason: Movement["reason"]) =>
     session.data.value.movements.filter((m) => m.itemId === item.id && m.reason === reason);
-  return { session, ctx, history, item, moves };
+  return { session, ctx, history, item, moves, view };
 }
 
 function stepper() {
@@ -128,6 +128,30 @@ describe("ItemDetailPage", () => {
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByRole("heading", { level: 2 })),
     );
+  });
+
+  it("depois de dois toques rapidos, Desfazer apaga so o ultimo movimento", async () => {
+    const { moves } = await setup();
+    fireEvent.click(useButton());
+    fireEvent.click(useButton());
+    await waitFor(() => expect(moves("use")).toHaveLength(2));
+    await waitFor(() => expect(stepper().getByText("0")).toBeTruthy());
+    const [older, newer] = [...moves("use")].sort((a, b) => (a.id < b.id ? -1 : 1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    await waitFor(() => expect(stepper().getByText("1")).toBeTruthy());
+    const byId = (id: string | undefined) => moves("use").find((m) => m.id === id);
+    expect(byId(newer?.id)?.deletedAt).not.toBeNull();
+    expect(byId(older?.id)?.deletedAt).toBeNull();
+  });
+
+  it("sair do Detalhe com toque em voo nao quebra e o toast ainda aparece", async () => {
+    const { ctx, moves, view } = await setup();
+    fireEvent.click(useButton());
+    view.unmount();
+    await waitFor(() => expect(moves("use")).toHaveLength(1));
+    await waitFor(() => expect(ctx.toast.current.value?.text).toBe("Usou 1 pct"));
+    expect(ctx.toast.current.value?.action?.label).toBe("Desfazer");
   });
 
   it("Adicionar um grava restock sem preco", async () => {

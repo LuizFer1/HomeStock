@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { isAlive } from "../../domain/model/base";
 import { cafe } from "../../domain/model/item.fake";
 import { quantityOf } from "../../domain/projections/stock";
+import type { Session } from "../session/session";
 import { ANA, openTestSession } from "../session/test-session.fake";
 import { createItemStore } from "./store";
 
@@ -54,6 +55,41 @@ describe("step e undo", () => {
     const sorted = [...moves()].sort((a, b) => (a.id < b.id ? -1 : 1));
     expect(sorted.map((m) => m.id)).toEqual(all.map((m) => m.id));
     expect(quantityOf(item.id, session.data.value.movements)).toBe(1);
+  });
+
+  it("fila serial: um comando so comeca depois de o anterior terminar", async () => {
+    const { session, item } = await setup();
+    // Cada `run` espera uma liberacao manual antes de gravar.
+    const gates: Array<() => void> = [];
+    const started: number[] = [];
+    const gated: Session = {
+      ...session,
+      run: (command) => {
+        started.push(gates.length);
+        return new Promise<void>((release) => gates.push(release)).then(() => session.run(command));
+      },
+    };
+    const store = createItemStore(gated);
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    const first = store.step(item.id, -1);
+    const second = store.step(item.id, 1);
+    const third = store.step(item.id, -1);
+    await flush();
+    expect(started).toHaveLength(1);
+
+    gates[0]?.();
+    await first;
+    await flush();
+    expect(started).toHaveLength(2);
+
+    gates[1]?.();
+    await second;
+    await flush();
+    expect(started).toHaveLength(3);
+
+    gates[2]?.();
+    await expect(third).resolves.toMatchObject({ reason: "use" });
   });
 
   it("uma falha na fila nao trava os toques seguintes", async () => {
