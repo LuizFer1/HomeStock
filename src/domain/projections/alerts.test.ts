@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { type AlertState, alertStateId } from "../model/alert-state";
+import type { ListExtra } from "../model/list-extra";
 import type { ListMark } from "../model/list-mark";
+import type { Movement } from "../model/movement";
 import { fakeItem, fakeMovement } from "../model/row.fake";
-import { type AlertInput, alertsOf, stockEpisode } from "./alerts";
+import { type ActivityAlert, type AlertInput, alertsOf, stockEpisode } from "./alerts";
 
 const TODAY = "2026-10-06";
 const PREFS: AlertInput["prefs"] = {
@@ -284,11 +286,184 @@ describe("alertsOf: resolvido e ordem", () => {
       fakeMovement(sabao.id, -1, { createdAt: at }),
     ];
     const list = alertsOf(input({ items: [iogurte, cafe, agua, sabao], movements }));
-    expect(list.today.map((a) => `${a.kind}:${a.item.name}`)).toEqual([
+    expect(list.today.map((a) => `${a.kind}:${a.kind === "activity" ? "" : a.item.name}`)).toEqual([
       "out:Sabão",
       "low:Água",
       "low:Café",
       "exp:Iogurte",
+    ]);
+  });
+});
+
+describe("alertsOf: atividade da casa", () => {
+  const ANA = "ANA";
+  const RAFA = "RAFA";
+  const at = (day: string, hour = 12) => `${day}T${String(hour).padStart(2, "0")}:00:00.000Z`;
+  const flat = (list: ReturnType<typeof alertsOf>) => [...list.today, ...list.week, ...list.older];
+  const activity = (list: ReturnType<typeof alertsOf>) =>
+    flat(list).filter((a): a is ActivityAlert => a.kind === "activity");
+  // Minimo 0: o estoque nunca alerta e so a atividade aparece.
+  const cafe = () => fakeItem({ name: "Café em grãos", unit: "pct", min: 0 });
+  const withLocal = (overrides: Partial<AlertInput>) => input({ localMemberId: ANA, ...overrides });
+
+  let extraSeq = 0;
+  function extra(overrides: Partial<ListExtra> = {}): ListExtra {
+    extraSeq += 1;
+    return {
+      id: `X${String(extraSeq).padStart(25, "0")}`,
+      createdAt: at("2026-10-05", 19),
+      updatedAt: "0000000000002-0000-00000000000000000000000000",
+      deletedAt: null,
+      dirty: 0,
+      authorId: null,
+      name: "Banana prata",
+      qty: null,
+      priceMinor: null,
+      checked: 0,
+      requestedBy: RAFA,
+      ...overrides,
+    };
+  }
+
+  it("uso de outro morador hoje vira um cartao use", () => {
+    const item = cafe();
+    const m = fakeMovement(item.id, -2, { authorId: RAFA, createdAt: at("2026-10-06") });
+    const list = alertsOf(withLocal({ items: [item], movements: [fakeMovement(item.id, 5), m] }));
+    const [card] = activity(list);
+    expect(list.today).toContain(card);
+    expect(card).toMatchObject({
+      kind: "activity",
+      activity: "use",
+      actorId: RAFA,
+      day: "2026-10-06",
+      key: "activity:use:RAFA:2026-10-06",
+      resolveKeys: [`act:${m.id}`],
+      group: "today",
+      resolved: false,
+      entries: [{ id: item.id, name: "Café em grãos", unit: "pct", qty: 2, itemAlive: true }],
+    });
+  });
+
+  it("morador local, semente e sem morador local nao geram nada", () => {
+    const item = cafe();
+    const mine = fakeMovement(item.id, -1, { authorId: ANA, createdAt: at("2026-10-06") });
+    const seed = fakeMovement(item.id, -1, { authorId: null, createdAt: at("2026-10-06") });
+    const base = { items: [item], movements: [fakeMovement(item.id, 5), mine, seed] };
+    expect(activity(alertsOf(withLocal(base)))).toEqual([]);
+    const theirs = fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-10-06") });
+    const noLocal = input({ items: [item], movements: [theirs] });
+    expect(activity(alertsOf(noLocal))).toEqual([]);
+  });
+
+  it("usos do mesmo dia viram um cartao, entradas somadas, mais recente primeiro", () => {
+    const cafeItem = cafe();
+    const leite = fakeItem({ name: "Leite integral", unit: "cx", min: 0 });
+    const c1 = fakeMovement(cafeItem.id, -1, { authorId: RAFA, createdAt: at("2026-10-06", 9) });
+    const c2 = fakeMovement(cafeItem.id, -1, { authorId: RAFA, createdAt: at("2026-10-06", 10) });
+    const l1 = fakeMovement(leite.id, -1, { authorId: RAFA, createdAt: at("2026-10-06", 11) });
+    const movements = [fakeMovement(cafeItem.id, 5), fakeMovement(leite.id, 5), c1, c2, l1];
+    const cards = activity(alertsOf(withLocal({ items: [cafeItem, leite], movements })));
+    expect(cards).toHaveLength(1);
+    const [card] = cards;
+    expect(card?.resolveKeys).toEqual([`act:${l1.id}`, `act:${c2.id}`, `act:${c1.id}`]);
+    expect(card?.at).toBe(at("2026-10-06", 11));
+    expect(card?.entries.map((e) => `${e.name} ${e.qty}`)).toEqual([
+      "Leite integral 1",
+      "Café em grãos 2",
+    ]);
+  });
+
+  it("guardar vira outro cartao; ontem fica em Esta semana", () => {
+    const item = cafe();
+    const r = fakeMovement(item.id, 3, { authorId: RAFA, createdAt: at("2026-10-05") });
+    const list = alertsOf(withLocal({ items: [item], movements: [r] }));
+    const [card] = activity(list);
+    expect(card).toMatchObject({ activity: "restock", group: "week", day: "2026-10-05" });
+    expect(card?.entries[0]?.qty).toBe(3);
+    expect(list.week).toContain(card);
+  });
+
+  it("a janela e de 7 dias: 6 dias atras entra, 7 nao", () => {
+    const item = cafe();
+    const old = fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-09-29") });
+    const edge = fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-09-30") });
+    const list = alertsOf(withLocal({ items: [item], movements: [old, edge] }));
+    expect(activity(list).map((a) => a.day)).toEqual(["2026-09-30"]);
+  });
+
+  it("movimento apagado, initial e adjust nao contam", () => {
+    const item = cafe();
+    const when = at("2026-10-06");
+    const movements = [
+      fakeMovement(item.id, -1, { authorId: RAFA, createdAt: when, deletedAt: when }),
+      fakeMovement(item.id, 5, { authorId: RAFA, createdAt: when, reason: "initial" }),
+      fakeMovement(item.id, -1, { authorId: RAFA, createdAt: when, reason: "adjust" }),
+    ];
+    expect(activity(alertsOf(withLocal({ items: [item], movements })))).toEqual([]);
+  });
+
+  it("pedido avulso de outro morador; linha antiga usa o authorId; apagado sai", () => {
+    const novo = extra();
+    const antigo = extra({ name: "Pão", requestedBy: undefined, authorId: RAFA });
+    const apagado = extra({ name: "Ovo", deletedAt: at("2026-10-05", 20) });
+    const meu = extra({ name: "Sal", requestedBy: ANA });
+    const cards = activity(alertsOf(withLocal({ listExtras: [novo, antigo, apagado, meu] })));
+    expect(cards).toHaveLength(1);
+    const [card] = cards;
+    expect(card).toMatchObject({ activity: "request", key: "activity:request:RAFA:2026-10-05" });
+    expect(card?.entries.map((e) => e.name).sort()).toEqual(["Banana prata", "Pão"]);
+    expect(card?.entries[0]).toMatchObject({ unit: "", qty: 1, itemAlive: false });
+    expect(card?.resolveKeys).toHaveLength(2);
+  });
+
+  it("so resolve com todas as chaves; evento novo reabre", () => {
+    const item = cafe();
+    const m1 = fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-10-06", 9) });
+    const m2 = fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-10-06", 10) });
+    const run = (states: AlertState[], movements: Movement[]) =>
+      activity(alertsOf(withLocal({ items: [item], movements, alertStates: states })));
+    expect(run([alertState(`act:${m1.id}`)], [m1, m2])[0]?.resolved).toBe(false);
+    const both = [alertState(`act:${m1.id}`), alertState(`act:${m2.id}`)];
+    expect(run(both, [m1, m2])[0]?.resolved).toBe(true);
+    const m3 = fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-10-06", 11) });
+    expect(run(both, [m1, m2, m3])[0]?.resolved).toBe(false);
+  });
+
+  it("item apagado entra com itemAlive false", () => {
+    const item = fakeItem({ name: "Velho", min: 0, deletedAt: at("2026-10-06") });
+    const m = fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-10-06") });
+    const list = alertsOf(withLocal({ items: [item], movements: [m] }));
+    expect(activity(list)[0]?.entries[0]).toMatchObject({ name: "Velho", itemAlive: false });
+  });
+
+  it("movimento de item ausente da tabela e ignorado", () => {
+    const m = fakeMovement("SEMITEM", -1, { authorId: RAFA, createdAt: at("2026-10-06") });
+    expect(activity(alertsOf(withLocal({ movements: [m] })))).toEqual([]);
+  });
+
+  it("alertActivity desligado esconde so a atividade", () => {
+    const item = fakeItem({ min: 2 });
+    const movements = [
+      fakeMovement(item.id, 1),
+      fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-10-06") }),
+    ];
+    const on = alertsOf(withLocal({ items: [item], movements }));
+    expect(activity(on)).toHaveLength(1);
+    const off = alertsOf(
+      withLocal({ items: [item], movements, prefs: { ...PREFS, alertActivity: false } }),
+    );
+    expect(activity(off)).toEqual([]);
+    expect(flat(off).map((a) => a.kind)).toEqual(["out"]);
+  });
+
+  it("ordena a atividade por at decrescente", () => {
+    const item = fakeItem({ min: 0 });
+    const early = extra({ createdAt: at("2026-10-06", 8) });
+    const late = fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-10-06", 15) });
+    const list = alertsOf(withLocal({ items: [item], movements: [late], listExtras: [early] }));
+    expect(list.today.map((a) => (a.kind === "activity" ? a.activity : a.kind))).toEqual([
+      "use",
+      "request",
     ]);
   });
 });

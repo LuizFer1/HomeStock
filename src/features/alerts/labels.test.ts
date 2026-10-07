@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Location } from "../../domain/model/item";
 import type { Member } from "../../domain/model/member";
 import { fakeItem, fakeMovement } from "../../domain/model/row.fake";
-import type { ExpiryAlert, StockAlert } from "../../domain/projections/alerts";
+import type {
+  ActivityAlert,
+  ActivityEntry,
+  ExpiryAlert,
+  StockAlert,
+} from "../../domain/projections/alerts";
 import {
   alertAction,
   alertMeta,
@@ -54,6 +59,30 @@ function expiry(daysLeft: number, overrides: Partial<ExpiryAlert> = {}): ExpiryA
   };
 }
 
+function entry(name: string, overrides: Partial<ActivityEntry> = {}): ActivityEntry {
+  return { id: name, name, unit: "pct", qty: 2, itemAlive: true, ...overrides };
+}
+
+function act(
+  activity: ActivityAlert["activity"],
+  entries: ActivityEntry[],
+  overrides: Partial<ActivityAlert> = {},
+): ActivityAlert {
+  return {
+    kind: "activity",
+    key: `activity:${activity}:RAFA:2026-10-06`,
+    resolveKeys: ["act:1"],
+    group: "today",
+    resolved: false,
+    activity,
+    actorId: "RAFA",
+    day: "2026-10-06",
+    at: iso(6, 8, 12),
+    entries,
+    ...overrides,
+  };
+}
+
 const ctx = (locations: Location[] = []) => ({
   members: [RAFA],
   locations,
@@ -90,17 +119,38 @@ describe("rotulos simples", () => {
 
 describe("alertTitle", () => {
   it("estoque", () => {
-    expect(alertTitle(stock())).toBe("Sabão em pó esgotou");
-    expect(alertTitle(stock({ kind: "low", item: fakeItem({ name: "Café em grãos" }) }))).toBe(
-      "Café em grãos abaixo do mínimo",
-    );
+    expect(alertTitle(stock(), [RAFA])).toBe("Sabão em pó esgotou");
+    expect(
+      alertTitle(stock({ kind: "low", item: fakeItem({ name: "Café em grãos" }) }), [RAFA]),
+    ).toBe("Café em grãos abaixo do mínimo");
   });
 
   it("validade", () => {
-    expect(alertTitle(expiry(1))).toBe("Iogurte natural vence amanhã");
-    expect(alertTitle(expiry(0))).toBe("Iogurte natural vence hoje");
-    expect(alertTitle(expiry(-2))).toBe("Iogurte natural venceu");
-    expect(alertTitle(expiry(3))).toBe("Iogurte natural vence em 3 dias");
+    expect(alertTitle(expiry(1), [RAFA])).toBe("Iogurte natural vence amanhã");
+    expect(alertTitle(expiry(0), [RAFA])).toBe("Iogurte natural vence hoje");
+    expect(alertTitle(expiry(-2), [RAFA])).toBe("Iogurte natural venceu");
+    expect(alertTitle(expiry(3), [RAFA])).toBe("Iogurte natural vence em 3 dias");
+  });
+
+  it("atividade", () => {
+    const cafe = entry("Café em grãos");
+    const title = (a: ActivityAlert) => alertTitle(a, [RAFA]);
+    expect(title(act("use", [cafe]))).toBe("Rafa usou 2 pct de Café em grãos");
+    expect(title(act("use", [cafe, entry("Leite"), entry("Pão")]))).toBe("Rafa usou 3 itens");
+    expect(title(act("restock", [entry("Café em grãos", { qty: 3 })]))).toBe(
+      "Rafa guardou 3 pct de Café em grãos",
+    );
+    expect(title(act("restock", [cafe, entry("Leite")]))).toBe("Rafa guardou 2 itens");
+    expect(title(act("request", [entry("Banana prata", { unit: "", qty: 1 })]))).toBe(
+      "Rafa adicionou 1 item à lista",
+    );
+    expect(title(act("request", [entry("A"), entry("B")]))).toBe("Rafa adicionou 2 itens à lista");
+  });
+
+  it("ator sem linha vira Outro morador", () => {
+    expect(alertTitle(act("use", [entry("Café")], { actorId: "ZZZ" }), [RAFA])).toBe(
+      "Outro morador usou 2 pct de Café",
+    );
   });
 });
 
@@ -135,6 +185,25 @@ describe("alertMeta", () => {
     expect(alertMeta(a, ctx())).toBe("1 de 2 pct · já está na lista");
   });
 
+  it("atividade: nomes e momento", () => {
+    const meta = (a: ActivityAlert) => alertMeta(a, ctx());
+    const request = act("request", [entry("Banana prata")], {
+      day: "2026-10-05",
+      at: iso(5, 19, 40),
+    });
+    expect(meta(request)).toBe("Banana prata · ontem, 19:40");
+    expect(meta(act("use", [entry("Café em grãos"), entry("Leite integral")]))).toBe(
+      "Café em grãos e Leite integral · hoje, 8:12",
+    );
+    const old = { day: "2026-10-03", at: iso(3, 9, 5) };
+    expect(meta(act("use", [entry("A"), entry("B"), entry("C")], old))).toBe(
+      "A, B e C · 03/10, 9:05",
+    );
+    expect(meta(act("use", [entry("A"), entry("B"), entry("C"), entry("D")], old))).toBe(
+      "A, B e mais 2 · 03/10, 9:05",
+    );
+  });
+
   it("exp com local vivo e apagado", () => {
     const geladeira = {
       id: "L1",
@@ -153,5 +222,15 @@ describe("alertAction", () => {
     expect(alertAction(expiry(1))).toEqual({ kind: "use", label: "Marcar como usado" });
     expect(alertAction(stock())).toEqual({ kind: "list", label: "Adicionar à lista" });
     expect(alertAction(stock({ onList: true }))).toEqual({ kind: "view", label: "Ver item" });
+  });
+
+  it("atividade: Ver item so com um item vivo", () => {
+    const view = { kind: "view", label: "Ver item" };
+    const ack = { kind: "ack", label: "Entendi" };
+    expect(alertAction(act("use", [entry("A")]))).toEqual(view);
+    expect(alertAction(act("restock", [entry("A")]))).toEqual(view);
+    expect(alertAction(act("use", [entry("A", { itemAlive: false })]))).toEqual(ack);
+    expect(alertAction(act("use", [entry("A"), entry("B")]))).toEqual(ack);
+    expect(alertAction(act("request", [entry("A", { itemAlive: true })]))).toEqual(ack);
   });
 });
