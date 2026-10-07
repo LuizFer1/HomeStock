@@ -10,11 +10,14 @@ import { gzipSync } from "node:zlib";
  * Historico:
  *   20kb  — infra base: Preact, signals, Tailwind com os tokens Organic, tab bar
  *           com 4 icones Lucide e o aviso de versao nova.
+ *   55kb  — fatia 2: o Dexie entra no bundle com o repositorio aberto no main.tsx,
+ *           mais a sessao com signals (48.84kb medidos). Os 6.16kb de folga sao
+ *           deliberados: onboarding, ajustes e CSV ainda entram nesta fatia.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact.
  */
-export const LIMIT_BYTES = 20 * 1024;
+export const LIMIT_BYTES = 55 * 1024;
 
 /**
  * Teto das fontes woff2. Ja vem comprimidas, gzip nao as reduz; medidas a parte
