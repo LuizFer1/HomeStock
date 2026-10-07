@@ -16,10 +16,22 @@
     <link rel="apple-touch-icon" href="/img/icons/icon_any_192.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/img/icons/icon_any_192.png" />
     <script>
-      // Aberta como PWA instalado: iOS antigo instala a URL atual, nao o start_url.
-      // Quem instalou quer o app, nao a vitrine.
       try {
+        // Aberta como PWA instalado: iOS antigo instala a URL atual, nao o start_url.
+        // Quem instalou quer o app, nao a vitrine.
         if (window.matchMedia("(display-mode: standalone)").matches) location.replace("app/");
+        // Antes do primeiro paint: sem isto o hero pinta visivel e some antes do reveal.
+        const root = document.documentElement;
+        if (
+          !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+          "IntersectionObserver" in window
+        ) {
+          root.classList.add("motion");
+          // Se o main.ts nao chegar, o conteudo nao pode ficar invisivel.
+          setTimeout(() => {
+            if (!("motionReady" in root.dataset)) root.classList.remove("motion");
+          }, 4000);
+        }
       } catch {}
     </script>
     <script type="module" src="/src/landing/main.ts"></script>

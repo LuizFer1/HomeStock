@@ -1093,3 +1093,42 @@ html[data-installed] [data-open-app] {
   margin: 0;
   scroll-margin-top: 80px;
 }
+
+/* --- Movimento --- */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* motion.ts escreve --float-y; sem JS ou com movimento reduzido fica em 0. */
+[data-float] {
+  transform: translate3d(0, var(--float-y, 0px), 0);
+}
+
+.motion [data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.8s var(--ease-out),
+    transform 0.8s var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.motion [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .feature {
+    transition: none;
+  }
+
+  .feature:hover {
+    transform: none;
+  }
+}
