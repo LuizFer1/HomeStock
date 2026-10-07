@@ -1,4 +1,5 @@
 import type { AlertsStore } from "./features/alerts/store";
+import type { HomeStore } from "./features/home/store";
 import type { ItemStore } from "./features/item/store";
 import type { ScannerEnv } from "./features/scanner/env";
 import type { Session } from "./features/session/session";
@@ -22,6 +23,8 @@ export interface AppContext {
   stock: StockStore;
   /** Lista de compras: marcar, ajustar, pedidos e o repor em lote. */
   shopping: ShoppingStore;
+  /** Foco de volta ao Inicio depois de uma tela empilhada. */
+  home: HomeStore;
   /** Resolver e reabrir alertas. */
   alerts: AlertsStore;
   /** 'YYYY-MM-DD' local, para status e notas de validade. */

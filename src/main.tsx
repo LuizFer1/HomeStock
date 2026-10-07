@@ -5,6 +5,7 @@ import type { AppContext } from "./app-context";
 import { HomeStockDb } from "./data/db";
 import { cryptoRandomChunk } from "./domain/ids/ulid";
 import { createAlertsStore } from "./features/alerts/store";
+import { createHomeStore } from "./features/home/store";
 import { createItemStore } from "./features/item/store";
 import { createOnboardingStore } from "./features/onboarding/store";
 import { AVATAR_PHOTO, ITEM_PHOTO, processPhoto } from "./features/photo/photo";
@@ -96,6 +97,7 @@ const ctx: AppContext = {
   stock: createStockStore(),
   shopping: createShoppingStore(session),
   alerts: createAlertsStore(session),
+  home: createHomeStore(),
   today: () => localToday(),
   processAvatar: (file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO),
   processItemPhoto: (file) => processPhoto(file, browserPhotoDeps, ITEM_PHOTO),

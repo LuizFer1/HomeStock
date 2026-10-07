@@ -1,12 +1,12 @@
 import { Fragment } from "preact";
 import type { AppContext } from "./app-context";
+import { HomePage } from "./features/home/home-page";
 import { MemberWizard } from "./features/onboarding/member-wizard";
 import type { OnboardingStore } from "./features/onboarding/store";
 import { TabBar } from "./features/shell/tab-bar";
 import { ToastView } from "./features/shell/toast-view";
 import { ShoppingPage } from "./features/shopping/shopping-page";
 import { StockPage } from "./features/stock/stock-page";
-import { Avatar } from "./features/ui/avatar";
 import { UpdateBanner } from "./features/update/update-banner";
 import { renderScreen } from "./screens";
 
@@ -52,7 +52,6 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
     if (tab === "stock") ctx.stock.scrollY.value = window.scrollY;
     router.push({ kind: "scan" });
   };
-  const me = session.localMember.value;
   // Sobe para 164 px quando o aviso de versao (tambem a 100 px) esta visivel, e acima do
   // rodape fixo da aba Compras.
   const toast = (
@@ -77,25 +76,7 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
       ) : tab === "shopping" ? (
         <ShoppingPage ctx={ctx} />
       ) : (
-        // So o Inicio sobra: as outras abas trazem o proprio `main`.
-        <main class="no-scrollbar px-[22px] pt-11 pb-[110px]">
-          <div class="flex items-center justify-between">
-            <h1 class="text-[36px]">Início</h1>
-            <button
-              type="button"
-              aria-label="Ajustes"
-              class="rounded-pill"
-              onClick={() => router.push({ kind: "settings" })}
-            >
-              {/* Sem a linha do morador (apagada no sync), o botao fica: "Sair da casa" mora nos Ajustes. */}
-              {me !== null ? (
-                <Avatar name={me.name} color={me.color} photo={me.photo} size={40} />
-              ) : (
-                <Avatar name="" color="cacau" photo={null} size={40} />
-              )}
-            </button>
-          </div>
-        </main>
+        <HomePage ctx={ctx} />
       )}
       {banner}
       {toast}

@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { fakeUpdate, testContext } from "./app-context.fake";
@@ -40,7 +40,7 @@ describe("App", () => {
   it("abre no Inicio com a sessao pronta", async () => {
     const { session } = await openTestSession({ member: ANA });
     setup(session);
-    expect(screen.getByRole("heading", { name: "Início" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Oi, Ana!" })).toBeTruthy();
   });
 
   it("troca de tela pela tab bar", async () => {
@@ -117,7 +117,7 @@ describe("App", () => {
       fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     }
     fireEvent.click(screen.getByRole("button", { name: "Entrar no HomeStock" }));
-    expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Oi, Ana!" })).toBeTruthy();
   });
 
   it("durante o onboarding nao mostra o aviso de versao nova", async () => {
@@ -160,8 +160,19 @@ describe("App", () => {
     const button = screen.getByRole("button", { name: "Ajustes" });
     expect(button.querySelector("img")).toBeNull();
     expect(button.textContent).toBe("?");
+    expect(screen.getByRole("heading", { level: 1, name: "Oi!" })).toBeTruthy();
     fireEvent.click(button);
     expect(router.stack.value.map((s) => s.kind)).toEqual(["settings"]);
+  });
+
+  it("o sino do Inicio abre os Alertas e voltar devolve o foco ao sino", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Alertas" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Alertas" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    const bell = await screen.findByRole("button", { name: "Alertas" });
+    await waitFor(() => expect(document.activeElement).toBe(bell));
   });
 
   it("voltar do sistema durante o salvar nao desempilha duas vezes", async () => {
@@ -204,7 +215,7 @@ describe("App", () => {
     fireEvent.click(back);
     fireEvent.click(back);
     expect(history.back).toHaveBeenCalledTimes(1);
-    expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Oi, Ana!" })).toBeTruthy();
     expect(router.stack.value).toEqual([]);
   });
 
@@ -216,7 +227,7 @@ describe("App", () => {
     expect(router.stack.value.map((s) => s.kind)).toEqual(["scan"]);
     fireEvent.input(screen.getByLabelText("Nome"), { target: { value: "Arroz" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar 1 un" }));
-    expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Oi, Ana!" })).toBeTruthy();
     expect(router.stack.value).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Estoque" }));
     expect(await screen.findByText("Arroz", { selector: "[data-item-id] *" })).toBeTruthy();
@@ -268,7 +279,7 @@ describe("App", () => {
     expect(region.textContent).toContain("Oi");
 
     ctx.router.onPopState();
-    expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Oi, Ana!" })).toBeTruthy();
     expect(screen.getByRole("status")).toBe(region);
     expect(region.textContent).toContain("Oi");
   });
