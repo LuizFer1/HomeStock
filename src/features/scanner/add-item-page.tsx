@@ -7,6 +7,7 @@ import { isAlive } from "../../domain/model/base";
 import { itemWithEan } from "../../domain/model/ean";
 import { ItemForm } from "../item/item-form";
 import { RestockForm } from "../item/restock-form";
+import { StatusPill } from "../ui/status-pill";
 import { ScanView } from "./scan-view";
 
 export interface AddItemPageProps {
@@ -18,21 +19,13 @@ export interface AddItemPageProps {
 /** Pilula "Código {ean}": sem ela, a camera some e nada visivel diz o que aconteceu. */
 function NewCodeNote({ ean, textId }: { ean: string; textId: string }) {
   return (
-    <div
-      role="status"
-      class="mt-3 flex items-center gap-[10px] rounded-pill bg-surface py-2 pr-4 pl-2"
-    >
-      <span
-        aria-hidden="true"
-        class="grid size-9 flex-none place-items-center rounded-full bg-text text-bg"
-      >
-        <ScanBarcode size={18} strokeWidth={2.75} />
-      </span>
-      <div id={textId} class="min-w-0">
-        <p class="font-semibold text-[13px] text-text">Código {ean}</p>
-        <p class="text-[11px] text-neutral-700">Item novo · preencha o nome</p>
-      </div>
-    </div>
+    <StatusPill
+      tone="neutral"
+      icon={<ScanBarcode size={18} strokeWidth={2.75} />}
+      title={`Código ${ean}`}
+      subtitle="Item novo · preencha o nome"
+      textId={textId}
+    />
   );
 }
 

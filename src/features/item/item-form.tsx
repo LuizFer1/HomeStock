@@ -1,4 +1,4 @@
-import { Camera, Image as ImageIcon, X } from "lucide-preact";
+import { Camera, Image as ImageIcon } from "lucide-preact";
 import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 import type { AppContext } from "../../app-context";
@@ -22,7 +22,7 @@ import { UnknownScreen } from "../shell/unknown-screen";
 import { BTN_SECONDARY, Button, PICK_FOCUS } from "../ui/button";
 import { CountStepper } from "../ui/count-stepper";
 import { ErrorText } from "../ui/error-text";
-import { IconButton } from "../ui/icon-button";
+import { FormHeader } from "../ui/form-header";
 import { TextField } from "../ui/text-field";
 import { initialOf, saveLabel } from "./labels";
 import { PriceField } from "./price-field";
@@ -350,14 +350,11 @@ export function ItemForm({
 
   return (
     <main class="min-h-dvh bg-bg px-[22px] pt-11 pb-6">
-      <div class="flex items-center justify-between">
-        <h1 ref={heading} tabIndex={-1} class="text-[26px]">
-          {create ? "Novo item" : "Editar item"}
-        </h1>
-        <IconButton label="Fechar" onClick={router.back}>
-          <X size={20} strokeWidth={2.75} />
-        </IconButton>
-      </div>
+      <FormHeader
+        title={create ? "Novo item" : "Editar item"}
+        headingRef={heading}
+        onClose={router.back}
+      />
 
       {top}
 

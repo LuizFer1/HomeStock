@@ -1,4 +1,4 @@
-import { Check, X } from "lucide-preact";
+import { Check } from "lucide-preact";
 import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 import type { AppContext } from "../../app-context";
@@ -10,7 +10,8 @@ import { closeIfStill } from "../shell/route";
 import { Button } from "../ui/button";
 import { CountStepper } from "../ui/count-stepper";
 import { ErrorText } from "../ui/error-text";
-import { IconButton } from "../ui/icon-button";
+import { FormHeader } from "../ui/form-header";
+import { StatusPill } from "../ui/status-pill";
 import { TextField } from "../ui/text-field";
 import { Field } from "./item-form";
 import { formatMoney, saveLabel } from "./labels";
@@ -95,35 +96,23 @@ export function RestockForm({ ctx, item, top, screenKind }: RestockFormProps): J
 
   return (
     <main class="min-h-dvh bg-bg px-[22px] pt-11 pb-6">
-      <div class="flex items-center justify-between">
-        {/* O foco vem ao titulo: a descricao faz o leitor de tela dizer o que foi achado. */}
-        <h1 ref={heading} tabIndex={-1} aria-describedby={bannerId} class="text-[26px]">
-          Novo item
-        </h1>
-        <IconButton label="Fechar" onClick={router.back}>
-          <X size={20} strokeWidth={2.75} />
-        </IconButton>
-      </div>
+      {/* O foco vem ao titulo: a descricao faz o leitor de tela dizer o que foi achado. */}
+      <FormHeader
+        title="Novo item"
+        headingRef={heading}
+        describedBy={bannerId}
+        onClose={router.back}
+      />
 
       {top}
 
-      <div
-        role="status"
-        class="mt-3 flex items-center gap-[10px] rounded-pill bg-accent-2-200 py-2 pr-4 pl-2"
-      >
-        <span
-          aria-hidden="true"
-          class="grid size-9 flex-none place-items-center rounded-full bg-accent-2-700 text-bg"
-        >
-          <Check size={18} strokeWidth={2.75} />
-        </span>
-        <div id={bannerId} class="min-w-0">
-          <p class="font-semibold text-[13px] text-accent-2-900">
-            {size === "" ? `Achamos! ${item.name}` : `Achamos! ${item.name} ${size}`}
-          </p>
-          <p class="text-[11px] text-accent-2-800">Já existe no estoque · vamos somar</p>
-        </div>
-      </div>
+      <StatusPill
+        tone="found"
+        icon={<Check size={18} strokeWidth={2.75} />}
+        title={size === "" ? `Achamos! ${item.name}` : `Achamos! ${item.name} ${size}`}
+        subtitle="Já existe no estoque · vamos somar"
+        textId={bannerId}
+      />
 
       <div class="mt-4 flex flex-col gap-3">
         <CountStepper
