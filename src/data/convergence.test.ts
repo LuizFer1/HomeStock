@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { describe, expect, it } from "vitest";
 import type { BaseRow } from "../domain/model/base";
 import { mergeRow } from "../domain/model/merge";
+import { prefsFrom } from "../domain/model/prefs";
 import { quantityOf } from "../domain/projections/stock";
 import { type HomeStockDb, SYNCED_TABLES } from "./db";
 import type { Repository } from "./repository";
@@ -85,5 +86,34 @@ describe("convergencia entre dois aparelhos", () => {
     await b.repo.deleteItem(item.id);
     await send(b.db, a.db, a.repo);
     expect((await a.db.items.get(item.id))?.deletedAt).not.toBeNull();
+  });
+
+  it("duas escritas da mesma preferencia viram uma linha com a de HLC maior", async () => {
+    const now = testClock();
+    const a = await device(1, now);
+    const b = await device(2, now);
+    await a.repo.setPref("autoList", false);
+    await b.repo.setPref("autoList", true);
+    await send(a.db, b.db, b.repo);
+    await send(b.db, a.db, a.repo);
+    for (const { db } of [a, b]) {
+      const rows = await db.prefs.toArray();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.value).toBe(true);
+    }
+  });
+
+  it("preferencias de chaves diferentes convivem", async () => {
+    const now = testClock();
+    const a = await device(1, now);
+    const b = await device(2, now);
+    await a.repo.setPref("houseName", "Casa Azul");
+    await b.repo.setPref("alertLow", false);
+    await send(a.db, b.db, b.repo);
+    await send(b.db, a.db, a.repo);
+    for (const { repo } of [a, b]) {
+      const prefs = prefsFrom((await repo.snapshot()).prefs);
+      expect(prefs).toMatchObject({ houseName: "Casa Azul", alertLow: false });
+    }
   });
 });

@@ -18,7 +18,7 @@ export function openTestDb(): HomeStockDb {
 export const TEST_MEMBER_ID = "01J9F3K2M7QX8YB4TVWZ0MEMBR";
 
 /** Aleatoriedade por semente: dois aparelhos de teste nao geram o mesmo id. */
-function seededRandom(seed: number): RandomChunk {
+export function seededRandom(seed: number): RandomChunk {
   let state = seed;
   return (count) =>
     Array.from({ length: count }, () => {

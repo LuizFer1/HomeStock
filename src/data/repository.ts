@@ -5,10 +5,17 @@ import type { RandomChunk, Ulid } from "../domain/ids/ulid";
 import { type BaseRow, type Draft, isAlive } from "../domain/model/base";
 import type { Category, Item, Location } from "../domain/model/item";
 import type { ListExtra } from "../domain/model/list-extra";
-import type { Member } from "../domain/model/member";
+import { type Member, type MemberDraft, normalizeMemberDraft } from "../domain/model/member";
 import type { Movement, MovementReason, Price } from "../domain/model/movement";
+import {
+  normalizePref,
+  type PrefKey,
+  type PrefRow,
+  type PrefValues,
+  prefId,
+} from "../domain/model/prefs";
 import { quantityOf } from "../domain/projections/stock";
-import type { HomeStockDb } from "./db";
+import { type HomeStockDb, LOCAL_MEMBER_KEY } from "./db";
 
 export interface RepositoryDeps {
   db: HomeStockDb;
@@ -26,6 +33,7 @@ export interface Snapshot {
   categories: Category[];
   locations: Location[];
   members: Member[];
+  prefs: PrefRow[];
   listExtras: ListExtra[];
   movements: Movement[];
   prices: Price[];
@@ -143,12 +151,22 @@ export async function openRepository(deps: RepositoryDeps) {
     async snapshot(): Promise<Snapshot> {
       return db.transaction(
         "r",
-        [db.items, db.categories, db.locations, db.members, db.listExtras, db.movements, db.prices],
+        [
+          db.items,
+          db.categories,
+          db.locations,
+          db.members,
+          db.prefs,
+          db.listExtras,
+          db.movements,
+          db.prices,
+        ],
         async () => ({
           items: await db.items.toArray(),
           categories: await db.categories.toArray(),
           locations: await db.locations.toArray(),
           members: await db.members.toArray(),
+          prefs: await db.prefs.toArray(),
           listExtras: await db.listExtras.toArray(),
           movements: await db.movements.toArray(),
           prices: await db.prices.toArray(),
@@ -283,6 +301,62 @@ export async function openRepository(deps: RepositoryDeps) {
     /** Itens que apontam para a categoria ficam como estao; a UI mostra "Sem categoria". */
     removeCategory: (id: Ulid) => setDeleted(db.categories, id, true),
     removeLocation: (id: Ulid) => setDeleted(db.locations, id, true),
+
+    /** Morador deste aparelho, ou null antes do onboarding. Estado do aparelho, nunca sincroniza. */
+    async localMemberId(): Promise<Ulid | null> {
+      return (await db.meta.get(LOCAL_MEMBER_KEY))?.value ?? null;
+    },
+
+    /**
+     * Linha do morador e `meta.localMemberId` numa transacao: falha nao deixa
+     * morador sem dono nem dono sem morador. O `authorId` e o proprio id, porque
+     * `currentMemberId()` ainda e null neste instante.
+     */
+    async createLocalMember(draft: MemberDraft): Promise<Member> {
+      const clean = normalizeMemberDraft(draft);
+      return db.transaction("rw", db.members, db.meta, async () => {
+        if ((await db.meta.get(LOCAL_MEMBER_KEY)) !== undefined) {
+          throw new Error("Este aparelho ja tem morador local");
+        }
+        const base = fresh(await stamp());
+        const member: Member = { ...base, authorId: base.id, ...clean, role: "admin" };
+        await db.members.add(member);
+        await db.meta.put({ key: LOCAL_MEMBER_KEY, value: member.id });
+        return member;
+      });
+    },
+
+    /** Nome, cor e foto (LWW). O resultado do merge passa pela mesma validacao da criacao. */
+    async updateMember(id: Ulid, patch: Partial<MemberDraft>): Promise<Member> {
+      return db.transaction("rw", db.members, db.meta, async () => {
+        const member = await db.members.get(id);
+        if (!isAlive(member)) throw new Error(`Morador ${id} nao existe`);
+        const clean = normalizeMemberDraft({
+          name: member.name,
+          color: member.color,
+          photo: member.photo,
+          ...patch,
+        });
+        const next = touched(member, await stamp(), clean);
+        await db.members.put(next);
+        return next;
+      });
+    },
+
+    /** Cria a linha de id `prefId(key)` ou carimba a existente (limpando `deletedAt`). */
+    async setPref<K extends PrefKey>(key: K, value: PrefValues[K]): Promise<PrefRow> {
+      const clean = normalizePref(key, value);
+      return db.transaction("rw", db.prefs, db.meta, async () => {
+        const s = await stamp();
+        const existing = await db.prefs.get(prefId(key));
+        const row: PrefRow =
+          existing === undefined
+            ? { ...fresh(s), id: prefId(key), key, value: clean }
+            : touched(existing, s, { value: clean, deletedAt: null });
+        await db.prefs.put(row);
+        return row;
+      });
+    },
 
     /** Item vivo com este EAN, para o "Achamos!" do scanner. */
     async findByEan(ean: string): Promise<Item | null> {

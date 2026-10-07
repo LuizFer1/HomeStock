@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compareHlc } from "../domain/clock/hlc";
 import { DEFAULT_CATEGORY_ID, SEED_HLC } from "../domain/defaults/seeds";
+import { prefId } from "../domain/model/prefs";
 import { quantityOf } from "../domain/projections/stock";
 import { lastPriceOf } from "../domain/projections/value";
 import { cafe, openTestDb, openTestRepository, TEST_MEMBER_ID } from "./test-db.fake";
@@ -167,5 +168,58 @@ describe("comandos", () => {
     await repo.deleteItem(item.id);
     expect(await repo.findByEan("7891234567890")).toBeNull();
     expect(await repo.findByEan("0000")).toBeNull();
+  });
+});
+
+describe("morador local", () => {
+  it("localMemberId e null num banco novo", async () => {
+    const { repo } = await openTestRepository();
+    expect(await repo.localMemberId()).toBeNull();
+  });
+
+  it("createLocalMember grava admin sujo, autor ele mesmo e meta", async () => {
+    const { db, repo } = await openTestRepository({ currentMemberId: () => null });
+    const member = await repo.createLocalMember({ name: "  Ana ", color: "salvia", photo: null });
+    expect(member).toMatchObject({ role: "admin", dirty: 1, name: "Ana", authorId: member.id });
+    expect((await db.meta.get("localMemberId"))?.value).toBe(member.id);
+    expect(await repo.localMemberId()).toBe(member.id);
+    await expect(
+      repo.createLocalMember({ name: "Bia", color: "cafe", photo: null }),
+    ).rejects.toThrow();
+    expect(await db.members.count()).toBe(1);
+  });
+
+  it("createLocalMember com nome vazio rejeita e nao grava meta", async () => {
+    const { db, repo } = await openTestRepository();
+    await expect(
+      repo.createLocalMember({ name: " ", color: "salvia", photo: null }),
+    ).rejects.toThrow("Informe seu nome.");
+    expect(await db.meta.get("localMemberId")).toBeUndefined();
+    expect(await db.members.count()).toBe(0);
+  });
+
+  it("updateMember muda a cor, mantem o nome e carimba", async () => {
+    const { repo } = await openTestRepository();
+    const member = await repo.createLocalMember({ name: "Ana", color: "salvia", photo: null });
+    const next = await repo.updateMember(member.id, { color: "cacau" });
+    expect(next).toMatchObject({ name: "Ana", color: "cacau", authorId: TEST_MEMBER_ID });
+    expect(compareHlc(next.updatedAt, member.updatedAt)).toBe(1);
+  });
+});
+
+describe("preferencias", () => {
+  it("setPref cria a linha e a segunda chamada carimba a mesma", async () => {
+    const { db, repo } = await openTestRepository();
+    const first = await repo.setPref("alertLow", false);
+    expect(first.id).toBe(prefId("alertLow"));
+    const second = await repo.setPref("alertLow", true);
+    expect(await db.prefs.count()).toBe(1);
+    expect(compareHlc(second.updatedAt, first.updatedAt)).toBe(1);
+    expect((await repo.snapshot()).prefs).toHaveLength(1);
+  });
+
+  it("setPref rejeita valor invalido", async () => {
+    const { repo } = await openTestRepository();
+    await expect(repo.setPref("expiringDays", 0)).rejects.toThrow();
   });
 });

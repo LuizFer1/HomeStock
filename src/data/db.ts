@@ -3,6 +3,10 @@ import type { Category, Item, Location } from "../domain/model/item";
 import type { ListExtra } from "../domain/model/list-extra";
 import type { Member } from "../domain/model/member";
 import type { Movement, Price } from "../domain/model/movement";
+import type { PrefRow } from "../domain/model/prefs";
+
+/** Chave de `meta` com o morador deste aparelho. */
+export const LOCAL_MEMBER_KEY = "localMemberId";
 
 export interface MetaRow {
   key: string;
@@ -21,6 +25,7 @@ export class HomeStockDb extends Dexie {
   readonly categories: Table<Category, string>;
   readonly locations: Table<Location, string>;
   readonly members: Table<Member, string>;
+  readonly prefs: Table<PrefRow, string>;
   readonly listExtras: Table<ListExtra, string>;
   readonly movements: Table<Movement, string>;
   readonly prices: Table<Price, string>;
@@ -38,10 +43,13 @@ export class HomeStockDb extends Dexie {
       prices: "id, itemId, dirty",
       meta: "key",
     });
+    // Aditiva: a v1 fica intacta e o Dexie migra sem tocar nos dados.
+    this.version(2).stores({ prefs: "id, dirty" });
     this.items = this.table("items");
     this.categories = this.table("categories");
     this.locations = this.table("locations");
     this.members = this.table("members");
+    this.prefs = this.table("prefs");
     this.listExtras = this.table("listExtras");
     this.movements = this.table("movements");
     this.prices = this.table("prices");
@@ -52,6 +60,7 @@ export class HomeStockDb extends Dexie {
 /** Tabelas que sincronizam, na ordem em que o sync deve aplica-las. */
 export const SYNCED_TABLES = [
   "members",
+  "prefs",
   "categories",
   "locations",
   "items",
