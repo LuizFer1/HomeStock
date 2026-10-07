@@ -73,7 +73,8 @@ export function createShoppingStore(session: Session): ShoppingStore {
       await enqueue(() => session.run((repo) => repo.restoreListExtra(id)));
     },
     async pin(itemId) {
-      await session.run((repo) => repo.markItem(itemId, { pinned: 1 }));
+      // Na fila: um fixar logo apos um tirar (ou o inverso) grava na ordem dos toques.
+      await enqueue(() => session.run((repo) => repo.markItem(itemId, { pinned: 1 })));
     },
     async unpin(itemId) {
       await enqueue(() => session.run((repo) => repo.unpinItem(itemId)));

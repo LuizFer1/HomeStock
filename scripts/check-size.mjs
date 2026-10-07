@@ -28,7 +28,8 @@ import { gzipSync } from "node:zlib";
  *   85kb  — fatia 5, Compras: a marca da lista (listMarks), pedidos validados e o
  *           repor em lote no repositorio estouraram o teto ja na primeira tarefa
  *           (75.02kb medidos: 68.86kb JS + 6.17kb CSS). A aba Compras, o sheet
- *           Ajustar e o CTA do Detalhe ainda entram nesta fatia.
+ *           Ajustar e o CTA do Detalhe entraram sem elevar o teto: medida final da
+ *           fatia 5 em 79.31kb (73.00kb JS + 6.30kb CSS), 5.69kb de folga.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact. O leitor zxing

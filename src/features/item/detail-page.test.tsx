@@ -309,4 +309,98 @@ describe("ItemDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
     expect(history.back).toHaveBeenCalledTimes(1);
   });
+
+  describe("lista de compras", () => {
+    const ADD = "Adicionar à lista de compras";
+    const REMOVE = "Tirar da lista de compras";
+    const PILL = "Na lista de compras · abaixo do mínimo";
+    const marks = (session: Session, itemId: string) =>
+      session.data.value.listMarks.filter((m) => m.itemId === itemId && m.deletedAt === null);
+    const pinFirst = async (session: Session, item: Item) => {
+      await session.run((repo) => repo.markItem(item.id, { pinned: 1 }));
+    };
+
+    it("fixa pelo botao, o foco fica no botao que vira Tirar e o Desfazer devolve", async () => {
+      const { session, item } = await setup({ qty: 5 });
+      const add = screen.getByRole("button", { name: ADD });
+      add.focus();
+      fireEvent.click(add);
+      const remove = await screen.findByRole("button", { name: REMOVE });
+      expect(await screen.findByText("Café em grãos entrou na lista")).toBeTruthy();
+      const [mark] = marks(session, item.id);
+      expect(mark?.pinned).toBe(1);
+      expect(mark?.pinnedBy).toBe(session.data.value.members.find((m) => m.name === ANA.name)?.id);
+      expect(mark?.pinnedBy).toBeTruthy();
+      expect(document.activeElement).toBe(remove);
+      // Como a pessoa: o foco esta no Desfazer do toast, que some ao fechar.
+      const undo = screen.getByRole("button", { name: "Desfazer" });
+      undo.focus();
+      fireEvent.click(undo);
+      await screen.findByRole("button", { name: ADD });
+      expect(marks(session, item.id)).toHaveLength(0);
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole("heading", { level: 2 })),
+      );
+    });
+
+    it("tirar da lista apaga a marca e o Desfazer devolve fixado", async () => {
+      const { session, item } = await setup({ qty: 5, prepare: pinFirst });
+      fireEvent.click(screen.getByRole("button", { name: REMOVE }));
+      await screen.findByRole("button", { name: ADD });
+      expect(await screen.findByText("Café em grãos saiu da lista")).toBeTruthy();
+      expect(marks(session, item.id)).toHaveLength(0);
+      fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+      await screen.findByRole("button", { name: REMOVE });
+      expect(marks(session, item.id)[0]?.pinned).toBe(1);
+    });
+
+    it("abaixo do minimo: pilula sem botao; com a lista automatica desligada volta o botao", async () => {
+      const { session } = await setup({ qty: 1 });
+      expect(screen.getByText(PILL)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: ADD })).toBeNull();
+      await session.run((repo) => repo.setPref("autoList", false));
+      await screen.findByRole("button", { name: ADD });
+      expect(screen.queryByText(PILL)).toBeNull();
+    });
+
+    it("min 0 com 0 un: pode ser pedido", async () => {
+      await setup({ qty: 0, draft: { min: 0 } });
+      expect(screen.getByRole("button", { name: ADD })).toBeTruthy();
+    });
+
+    it("dois cliques seguidos gravam uma vez", async () => {
+      const { session, item } = await setup({ qty: 5 });
+      const button = screen.getByRole("button", { name: ADD });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      await screen.findByRole("button", { name: REMOVE });
+      const all = session.data.value.listMarks.filter((m) => m.itemId === item.id);
+      expect(all).toHaveLength(1);
+      expect(all[0]?.pinned).toBe(1);
+    });
+
+    it("o + do stepper tira o item fixado da lista", async () => {
+      const { session, item } = await setup({ qty: 5, prepare: pinFirst });
+      fireEvent.click(addButton());
+      await screen.findByRole("button", { name: ADD });
+      expect(marks(session, item.id)).toHaveLength(0);
+    });
+
+    it("quando o item cai abaixo do minimo o botao vira pilula e o foco vai a ela", async () => {
+      await setup({ qty: 2 });
+      screen.getByRole("button", { name: ADD }).focus();
+      fireEvent.click(useButton());
+      const pill = await screen.findByText(PILL);
+      // O foco estava no botao que sumiu; a pilula (tabIndex -1) o recebe.
+      await waitFor(() => expect(document.activeElement).toBe(pill));
+    });
+
+    it("erro do botao aparece abaixo dele e o botao reabre", async () => {
+      const { ctx } = await setup({ qty: 5 });
+      ctx.shopping.pin = () => Promise.reject(new Error("Sem espaço."));
+      fireEvent.click(screen.getByRole("button", { name: ADD }));
+      expect((await screen.findByRole("alert")).textContent).toContain("Sem espaço.");
+      expect(screen.getByRole("button", { name: ADD })).toBeTruthy();
+    });
+  });
 });

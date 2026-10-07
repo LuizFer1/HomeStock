@@ -126,6 +126,14 @@ describe("fila serial dos comandos", () => {
     expect(markOf()).toBeUndefined();
   });
 
+  it("fixar e tirar da lista sem await seguem a ordem dos toques", async () => {
+    const { item, store, markOf } = await setup();
+    const a = store.pin(item.id);
+    const b = store.unpin(item.id);
+    await Promise.all([a, b]);
+    expect(markOf()).toBeUndefined();
+  });
+
   it("o repor com um ajuste pendente leva a quantidade e o preco ajustados", async () => {
     const { session, item, store, list } = await setup();
     await store.toggle({ kind: "item", id: item.id });

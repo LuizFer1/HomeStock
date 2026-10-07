@@ -1,4 +1,4 @@
-import { ChevronLeft, Minus, Plus } from "lucide-preact";
+import { ChevronLeft, Minus, Plus, ShoppingCart } from "lucide-preact";
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { AppContext } from "../../app-context";
@@ -6,11 +6,12 @@ import type { Ulid } from "../../domain/ids/ulid";
 import { isAlive } from "../../domain/model/base";
 import { isPhotoDataUrl } from "../../domain/model/member";
 import { consumptionOf } from "../../domain/projections/consumption";
+import { listStatusOf, liveMarkOf } from "../../domain/projections/shopping";
 import { quantities, statusOf } from "../../domain/projections/stock";
 import { lastPriceOf } from "../../domain/projections/value";
 import { describeError } from "../session/session";
 import { UnknownScreen } from "../shell/unknown-screen";
-import { BTN_BASE } from "../ui/button";
+import { BTN_BASE, Button } from "../ui/button";
 import { ErrorText } from "../ui/error-text";
 import {
   barHeights,
@@ -59,7 +60,7 @@ function Chip(props: { label: string; value: string; accent?: boolean }) {
 
 /** Detalhe do item (markup 2c, linhas 277 a 330). */
 export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | null {
-  const { session, router, items, toast } = ctx;
+  const { session, router, items, toast, shopping } = ctx;
   const data = session.data.value;
   const expiringDays = session.prefs.value.expiringDays;
 
@@ -73,6 +74,11 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
   const ticket = useRef(0);
   // Se o − desabilitou no 0 depois do toque, o foco iria ao body.
   const pressedUse = useRef(false);
+  // CTA da lista: trava de envio unico, contêiner (para o foco) e erro proprio.
+  const listBusy = useRef(false);
+  const mounted = useRef(true);
+  const cta = useRef<HTMLDivElement>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   const item = data.items.find((i) => i.id === id && isAlive(i));
   const q = item === undefined ? 0 : (quantities(data.movements).get(id) ?? 0);
@@ -83,6 +89,10 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
 
   useEffect(() => {
     heading.current?.focus();
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -93,6 +103,28 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
     const active = document.activeElement;
     if (active === from || active === null || active === document.body) plusBtn.current?.focus();
   }, [shown]);
+
+  // Soma do snapshot (q), nao o `shown`: o pendente do stepper ainda nao mudou a lista.
+  const listStatus =
+    item === undefined
+      ? "off"
+      : listStatusOf(
+          item,
+          Math.max(0, q),
+          liveMarkOf(item, data.movements, data.listMarks),
+          session.prefs.value.autoList,
+        );
+  const ctaKind = listStatus === "auto" ? "pill" : "button";
+  const prevCtaKind = useRef(ctaKind);
+  useEffect(() => {
+    const before = prevCtaKind.current;
+    prevCtaKind.current = ctaKind;
+    if (before === ctaKind) return;
+    // Botao e pilula sao elementos diferentes: se o foco estava no que saiu, vai ao novo.
+    const active = document.activeElement;
+    const lost = active === null || active === document.body || !active.isConnected;
+    if (lost) cta.current?.querySelector<HTMLElement>("button, p")?.focus();
+  }, [ctaKind]);
 
   // Apagado em outro lugar (outra aba, sync): nada a mostrar, volta.
   if (item === undefined) return <UnknownScreen onBack={router.back} />;
@@ -110,6 +142,47 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
   const heights = barHeights(daysPerUnit);
   const price = lastPriceOf(id, data.prices);
   const unit = item.unit;
+
+  // O botao do toast some ao fechar; o foco volta ao titulo se ficou perdido.
+  function refocusHeading() {
+    nextFrame(() => {
+      const active = document.activeElement;
+      const lost = active === null || active === document.body || !active.isConnected;
+      if (lost && heading.current?.isConnected) heading.current.focus();
+    });
+  }
+
+  async function toggleList() {
+    if (item === undefined || listBusy.current) return;
+    listBusy.current = true;
+    setListError(null);
+    const { name } = item;
+    try {
+      if (listStatus === "pinned") {
+        await shopping.unpin(id);
+        toast.show(`${name} saiu da lista`, {
+          label: "Desfazer",
+          run: async () => {
+            await shopping.restorePin(id);
+            refocusHeading();
+          },
+        });
+      } else {
+        await shopping.pin(id);
+        toast.show(`${name} entrou na lista`, {
+          label: "Desfazer",
+          run: async () => {
+            await shopping.unpin(id);
+            refocusHeading();
+          },
+        });
+      }
+    } catch (cause) {
+      if (mounted.current) setListError(describeError(cause));
+    } finally {
+      listBusy.current = false;
+    }
+  }
 
   async function step(direction: 1 | -1) {
     // Cada toque conta (sem trava de duplo envio); so nao deixa passar de 0.
@@ -257,6 +330,31 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
             <span class="font-semibold text-[13px]">{formatMoney(price)}</span>
           </div>
         )}
+
+        <div ref={cta} class="mt-4">
+          {listStatus === "auto" ? (
+            <p
+              tabIndex={-1}
+              class="flex min-h-[52px] items-center justify-center gap-1.5 rounded-pill bg-accent-2-100 font-semibold text-[14px] text-accent-2-800"
+            >
+              <ShoppingCart size={18} strokeWidth={2.75} aria-hidden="true" />
+              Na lista de compras · abaixo do mínimo
+            </p>
+          ) : (
+            // Mesmo elemento nos dois estados: o foco fica nele ao trocar o rotulo.
+            <Button
+              block
+              class="min-h-[52px] text-[16px]"
+              variant={listStatus === "pinned" ? "secondary" : "primary"}
+              onClick={toggleList}
+            >
+              {listStatus === "pinned"
+                ? "Tirar da lista de compras"
+                : "Adicionar à lista de compras"}
+            </Button>
+          )}
+          {listError !== null && <ErrorText class="mt-2 text-center">{listError}</ErrorText>}
+        </div>
       </div>
     </main>
   );
