@@ -274,3 +274,27 @@ describe("rodape", () => {
     expect(textOf(doc.getElementById("privacidade"))).toMatch(/fica só no seu aparelho/);
   });
 });
+
+describe("dialogo de instalacao", () => {
+  const doc = loadLanding();
+  const dialog = doc.querySelector("dialog#instalar");
+
+  it("tem nome acessivel valido", () => {
+    const id = dialog?.getAttribute("aria-labelledby");
+    expect(id).toBeTruthy();
+    expect(id && doc.getElementById(id)).not.toBeNull();
+  });
+
+  it("dois paineis com tres passos cada", () => {
+    const panels = dialog?.querySelectorAll("[data-steps]") ?? [];
+    expect([...panels].map((p) => p.getAttribute("data-steps"))).toEqual(["ios", "android"]);
+    for (const p of panels) expect(p.querySelectorAll("li")).toHaveLength(3);
+  });
+
+  it("botao Fechar e link Usar no navegador para app/", () => {
+    expect(dialog?.querySelector("button[data-dialog-close][aria-label='Fechar']")).not.toBeNull();
+    const link = dialog?.querySelector("a.btn-secondary");
+    expect(textOf(link)).toBe("Usar no navegador");
+    expect(link?.getAttribute("href")).toBe("app/");
+  });
+});

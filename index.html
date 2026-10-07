@@ -310,6 +310,24 @@
       <span>© 2026 HomeStock</span>
       <p id="privacidade" class="footer-privacy">Privacidade: o HomeStock não tem conta nem servidor. O que você cadastra fica só no seu aparelho; esta página não usa cookies nem rastreamento.</p>
     </footer>
+    <dialog id="instalar" class="dialog-shell" aria-labelledby="instalar-titulo">
+      <div class="dialog">
+        <button type="button" class="btn btn-secondary btn-icon dialog-close" data-dialog-close aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+        <h2 id="instalar-titulo" class="dialog-title">Instalar no iPhone</h2>
+        <ol class="steps" data-steps="ios">
+          <li>Toque em Compartilhar, o quadrado com a seta para cima na barra do navegador. <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2v13" /><path d="m16 6-4-4-4 4" /><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /></svg></li>
+          <li>Role e escolha “Adicionar à Tela de Início”.</li>
+          <li>Toque em Adicionar. O HomeStock abre pelo ícone, mesmo sem internet.</li>
+        </ol>
+        <ol class="steps" data-steps="android" hidden>
+          <li>Toque no menu do navegador (⋮). <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="1" /><circle cx="12" cy="5" r="1" /><circle cx="12" cy="19" r="1" /></svg></li>
+          <li>Escolha “Instalar app” ou “Adicionar à tela inicial”.</li>
+          <li>Confirme. O HomeStock abre pelo ícone, mesmo sem internet.</li>
+        </ol>
+        <a class="btn btn-secondary" href="app/">Usar no navegador</a>
+        <button type="button" class="btn btn-primary" data-dialog-close>Entendi</button>
+      </div>
+    </dialog>
     <!-- secao:dialogos -->
   </body>
 </html>

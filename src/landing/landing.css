@@ -2049,3 +2049,88 @@ html {
     transition: none;
   }
 }
+
+/* --- Dialogos --- */
+
+.dialog-shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  overflow-y: auto;
+}
+
+.dialog-shell[open] {
+  display: flex;
+}
+
+.dialog-shell::backdrop {
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+}
+
+html:has(.dialog-shell[open]) {
+  overflow: hidden;
+}
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(400px, 100%);
+  margin: auto;
+  padding: 26px;
+  border-radius: 32.2px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.dialog-title {
+  font-size: 24px;
+  margin: 0;
+  padding-right: 48px;
+}
+
+.dialog-body {
+  font-size: 14px;
+  opacity: 0.85;
+  margin: 0;
+}
+
+.dialog-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+}
+
+.dialog .btn:not(.dialog-close) {
+  min-height: 48px;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.steps[hidden] {
+  display: none;
+}
+
+.steps svg {
+  display: inline-block;
+  vertical-align: -3px;
+}

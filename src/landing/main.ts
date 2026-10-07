@@ -1,7 +1,10 @@
 // Pagina de vitrine: HTML estatico, CSS a mao, TS sem framework. Cada parte se
 // liga aqui; o first paint e o proprio HTML.
 import "./landing.css";
+import { createInstallFlow } from "./install";
+import { bindInstall } from "./install-view";
 import { startFloat, startReveal } from "./motion";
+import { detectPlatform } from "./platform";
 import { bindSharedList } from "./shared-list";
 import { bindSimulation } from "./sim-view";
 
@@ -30,3 +33,14 @@ if (sim) {
     IntersectionObserver: "IntersectionObserver" in window ? IntersectionObserver : undefined,
   });
 }
+
+bindInstall(document, {
+  platform: detectPlatform({
+    userAgent: navigator.userAgent,
+    maxTouchPoints: navigator.maxTouchPoints,
+    coarse: window.matchMedia("(pointer: coarse)").matches,
+  }),
+  flow: createInstallFlow(),
+  standalone: window.matchMedia("(display-mode: standalone)").matches,
+  win: window,
+});
