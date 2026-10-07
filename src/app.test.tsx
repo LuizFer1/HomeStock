@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { signal } from "@preact/signals";
-import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { openTestDb, seededRandom, testClock } from "./data/test-db.fake";
@@ -189,9 +189,12 @@ describe("App", () => {
     expect(router.stack.value.map((s) => s.kind)).toEqual(["settings"]);
     release();
     await vi.waitFor(() => expect(session.localMember.value?.name).toBe("Ana"));
-    await new Promise((r) => setTimeout(r, 20));
+    // O heading de Ajustes so volta quando o salvar terminou e a tela reagiu.
+    expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(history.back).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: "Ajustes" })).toBeTruthy();
   });
 
   it("Categorias e locais abre a tela de lugares e Voltar volta aos Ajustes", async () => {

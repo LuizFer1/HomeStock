@@ -5,16 +5,18 @@ import { cafe } from "../../data/test-db.fake";
 import { DEFAULT_CATEGORY_ID } from "../../domain/defaults/seeds";
 import { ANA, openTestSession } from "../session/test-session.fake";
 import { PlacesPage } from "./places-page";
-import { createSettingsStore } from "./store";
+import { createSettingsStore, type SettingsStore } from "./store";
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
 
-async function setup() {
+/** `prepare` roda antes do render: a pagina captura `store.upsert*` ao montar. */
+async function setup(prepare?: (store: SettingsStore) => void) {
   const { session } = await openTestSession({ member: ANA });
   const store = createSettingsStore(session, { download: vi.fn(), today: () => "2026-10-06" });
+  prepare?.(store);
   const onBack = vi.fn();
   render(<PlacesPage session={session} store={store} onBack={onBack} />);
   return { session, store, onBack };
@@ -169,12 +171,15 @@ describe("PlacesPage", () => {
   });
 
   it("renomear para o mesmo nome fecha o campo sem gravar", async () => {
-    const { store } = await setup();
-    const spy = vi.spyOn(store, "upsertLocation");
+    let spy: ReturnType<typeof vi.spyOn> | undefined;
+    await setup((store) => {
+      spy = vi.spyOn(store, "upsertLocation");
+    });
     fireEvent.click(screen.getByRole("button", { name: "Renomear Freezer" }));
     fireEvent.input(screen.getByLabelText("Nome de Freezer"), { target: { value: " Freezer " } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar Freezer" }));
     expect(screen.queryByLabelText("Nome de Freezer")).toBeNull();
+    expect(spy).toBeDefined();
     expect(spy).not.toHaveBeenCalled();
   });
 });
