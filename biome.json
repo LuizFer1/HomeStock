@@ -25,6 +25,12 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["src/landing/landing.css"],
+      "linter": { "rules": { "style": { "noDescendingSpecificity": "off" } } }
+    }
+  ],
   "css": {
     "parser": {
       "tailwindDirectives": true

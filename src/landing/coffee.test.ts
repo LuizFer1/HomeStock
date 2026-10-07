@@ -80,6 +80,14 @@ describe("QR", () => {
     expect(loadQr).not.toHaveBeenCalled();
   });
 
+  it("imagem do QR comeca oculta e aparece quando recebe o src", async () => {
+    setup({ wantsQr: () => true });
+    expect(q<HTMLImageElement>("[data-coffee-qr-img]").hidden).toBe(true);
+    openers()[0]?.click();
+    await flush();
+    expect(q<HTMLImageElement>("[data-coffee-qr-img]").hidden).toBe(false);
+  });
+
   it("com media query gera ao abrir e guarda em cache por valor", async () => {
     const qrSvg = vi.fn((payload: string) => `<svg data-p="${payload.length}"/>`);
     const loadQr = vi.fn(() => Promise.resolve({ qrSvg }));
@@ -117,8 +125,10 @@ describe("copiar", () => {
     await flush();
     expect(writeText).toHaveBeenCalledWith("cafe@homestock.app");
     expect(text("[data-coffee-copy-label]")).toBe("Copiado");
+    expect(live()).toBe("");
+    vi.advanceTimersByTime(50);
     expect(live()).toBe("Chave Pix copiada");
-    vi.advanceTimersByTime(1799);
+    vi.advanceTimersByTime(1749);
     expect(text("[data-coffee-copy-label]")).toBe("Copiado");
     vi.advanceTimersByTime(1);
     expect(text("[data-coffee-copy-label]")).toBe("Copiar");
@@ -130,8 +140,9 @@ describe("copiar", () => {
     q<HTMLElement>("[data-coffee-copy]").click();
     await flush();
     expect(text("[data-coffee-copy-label]")).toBe("Copie à mão");
+    vi.advanceTimersByTime(50);
     expect(live()).toBe("Não deu para copiar. A chave é cafe@homestock.app");
-    vi.advanceTimersByTime(1800);
+    vi.advanceTimersByTime(1750);
     expect(text("[data-coffee-copy-label]")).toBe("Copiar");
   });
 

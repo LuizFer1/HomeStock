@@ -2045,7 +2045,8 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .sim *,
   .sim *::before,
-  .sim *::after {
+  .sim *::after,
+  .sim-item .shop-check {
     transition: none;
   }
 }

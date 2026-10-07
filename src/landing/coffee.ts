@@ -61,7 +61,10 @@ export function bindCoffee(doc: Document, deps: CoffeeDeps): void {
         cache.set(v, src);
       }
       // O valor pode ter mudado durante o await: so aplica se ainda e o atual.
-      if (v === amount()) qrImg.src = src;
+      if (v === amount()) {
+        qrImg.src = src;
+        qrImg.hidden = false;
+      }
     } catch {
       qrDead = true;
       qrBlock.hidden = true;
@@ -84,7 +87,13 @@ export function bindCoffee(doc: Document, deps: CoffeeDeps): void {
       copyLabel.textContent = label;
       copyLabel.classList.toggle("is-ok", ok);
     }
-    if (live) live.textContent = message;
+    // Limpa e escreve no tick seguinte: o leitor de tela repete avisos iguais seguidos.
+    if (live) {
+      live.textContent = "";
+      deps.setTimeout(() => {
+        live.textContent = message;
+      }, 50);
+    }
     if (copyTimer !== undefined) deps.clearTimeout(copyTimer);
     copyTimer = deps.setTimeout(() => {
       if (copyLabel) {
