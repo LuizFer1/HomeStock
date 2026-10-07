@@ -4,6 +4,7 @@ import { MemberWizard } from "./features/onboarding/member-wizard";
 import type { OnboardingStore } from "./features/onboarding/store";
 import type { Tab } from "./features/shell/route";
 import { TabBar } from "./features/shell/tab-bar";
+import { ToastView } from "./features/shell/toast-view";
 import { Avatar } from "./features/ui/avatar";
 import { UpdateBanner } from "./features/update/update-banner";
 import { renderScreen } from "./screens";
@@ -34,6 +35,8 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
   }
 
   const banner = update.ready.value && <UpdateBanner onApply={update.apply} />;
+  // Sobe para 164 px quando o aviso de versao (tambem a 100 px) esta visivel.
+  const toast = <ToastView store={ctx.toast} raised={update.ready.value} />;
 
   if (onboarding.needsOnboarding.value) {
     return (
@@ -59,6 +62,7 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
             seguidas reaproveitariam a instancia e o efeito de voltar nao rodaria. */}
         <Fragment key={router.stack.value.length}>{renderScreen(top, ctx)}</Fragment>
         {banner}
+        {toast}
       </div>
     );
   }
@@ -88,6 +92,7 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
         )}
       </main>
       {banner}
+      {toast}
       <TabBar active={tab} onSelect={router.selectTab} onScan={() => {}} />
     </div>
   );

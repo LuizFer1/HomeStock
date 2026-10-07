@@ -14,6 +14,7 @@ import { type ResetDeps, resetDevice } from "./features/settings/reset";
 import { scopeResetDeps } from "./features/settings/reset-scope";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
+import { createToastStore } from "./features/shell/toast";
 import { createUpdateStore, type SwContainer } from "./features/update/store";
 
 const root = document.getElementById("app");
@@ -85,6 +86,7 @@ const ctx: AppContext = {
   session,
   update,
   settings,
+  toast: createToastStore(),
   processAvatar: (file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO),
   onLeave: () =>
     resetDevice({

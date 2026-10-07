@@ -12,7 +12,7 @@ import { createRouter } from "./features/shell/route";
 function setup(session: Session, ready = false) {
   const { ctx, history } = testContext(session, { update: fakeUpdate(ready) });
   render(<App ctx={ctx} onboarding={createOnboardingStore(session)} />);
-  return { router: ctx.router, history };
+  return { router: ctx.router, history, ctx };
 }
 
 /** Historico que nao dispara popstate sozinho: o teste anda a pilha passo a passo. */
@@ -198,6 +198,33 @@ describe("App", () => {
     expect(history.back).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
     expect(router.stack.value).toEqual([]);
+  });
+
+  it("o toast aparece na aba e numa tela empilhada", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { ctx } = setup(session);
+    act(() => ctx.toast.show("Oi"));
+    expect(screen.getByRole("status").textContent).toContain("Oi");
+    act(() => ctx.toast.dismiss());
+
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
+    expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
+    act(() => ctx.toast.show("Olá"));
+    expect(screen.getByRole("status").textContent).toContain("Olá");
+  });
+
+  it("com o aviso de versao o toast sobe", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { ctx } = setup(session, true);
+    act(() => ctx.toast.show("Oi"));
+    expect(screen.getByText("Oi").parentElement?.className).toContain("bottom-[164px]");
+  });
+
+  it("durante o onboarding nao mostra o toast", async () => {
+    const { session } = await openTestSession();
+    const { ctx } = setup(session);
+    act(() => ctx.toast.show("Oi"));
+    expect(screen.queryByText("Oi")).toBeNull();
   });
 
   it("Categorias e locais abre a tela de lugares e Voltar volta aos Ajustes", async () => {

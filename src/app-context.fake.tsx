@@ -4,6 +4,7 @@ import type { AppContext } from "./app-context";
 import type { Session } from "./features/session/session";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
+import { createToastStore } from "./features/shell/toast";
 import type { UpdateStore } from "./features/update/store";
 
 /** Aviso de versao parado: `ready` diz se ja ha versao nova esperando. */
@@ -34,6 +35,7 @@ export function testContext(
     session,
     update: fakeUpdate(),
     settings: createSettingsStore(session, { download: vi.fn(), today: () => "2026-10-06" }),
+    toast: createToastStore(),
     processAvatar: async () => "data:image/webp;base64,AAA",
     onLeave: async () => {},
     ...overrides,
