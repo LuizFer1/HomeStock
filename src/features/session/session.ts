@@ -70,8 +70,11 @@ export function createSession(deps: SessionDeps): Session {
         // `peek`: o repositorio le o autor na hora do comando, sem assinar o signal.
         currentMemberId: () => localMemberId.peek(),
       });
-      const snapshot = await opened.snapshot();
+      // O id antes do snapshot: assim o snapshot e no minimo tao novo quanto o
+      // id, e um onboarding concluido em outra aba entre as duas leituras nao
+      // publica um id cuja linha falta em `members`.
       const memberId = await opened.localMemberId();
+      const snapshot = await opened.snapshot();
       repo = opened;
       // Uma publicacao so: `ready` com estado vazio faria a tela piscar o
       // onboarding antes de o disco responder.
@@ -81,7 +84,7 @@ export function createSession(deps: SessionDeps): Session {
         status.value = "ready";
       });
     } catch (cause) {
-      // Nao relanca: quem chama e o `main.tsx`, e a tela de erro e o aviso.
+      // Nao relanca: quem chama e o `main.tsx`, e a tela de erro e quem avisa.
       batch(() => {
         status.value = "error";
         error.value = describeError(cause);
@@ -94,8 +97,9 @@ export function createSession(deps: SessionDeps): Session {
     if (current === null) return;
     requested += 1;
     const ticket = requested;
-    const snapshot = await current.snapshot();
+    // Mesma ordem do `init`: id primeiro, snapshot depois.
     const memberId = await current.localMemberId();
+    const snapshot = await current.snapshot();
     // Duas leituras em voo podem terminar fora de ordem; a mais velha nao pode
     // cobrir a mais nova.
     if (ticket <= published) return;
@@ -110,6 +114,8 @@ export function createSession(deps: SessionDeps): Session {
     if (repo === null) throw new Error("Sessao nao inicializada");
     // Grava antes de publicar: se o banco recusar, a tela nao muda.
     const result = await command(repo);
+    // Se o comando gravou e o reload falhar, `run` rejeita com a escrita salva;
+    // o proximo reload a publica.
     await reload();
     return result;
   }

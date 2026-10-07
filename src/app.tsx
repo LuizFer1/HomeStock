@@ -62,7 +62,9 @@ export function App({
   if (top !== null) {
     return (
       <div class="mx-auto min-h-dvh max-w-[480px]">
-        <StackedScreen screen={top} router={router} />
+        {/* A chave pela profundidade remonta a tela a cada pop: duas desconhecidas
+            seguidas reaproveitariam a instancia e o efeito de voltar nao rodaria. */}
+        <StackedScreen key={router.stack.value.length} screen={top} router={router} />
         {banner}
       </div>
     );

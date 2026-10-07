@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { describe, expect, it, vi } from "vitest";
-import type { Repository } from "../../data/repository";
+import { openRepository, type Repository } from "../../data/repository";
 import { openTestDb, seededRandom, testClock } from "../../data/test-db.fake";
 import { seedCategories } from "../../domain/defaults/seeds";
 import { DEFAULT_PREFS } from "../../domain/model/prefs";
@@ -103,6 +103,32 @@ describe("createSession", () => {
     release();
     await first;
     expect(session.data.value.categories.some((c) => c.name === "Bebidas")).toBe(true);
+  });
+
+  it("morador criado em outra aba entre as leituras nao publica id sem linha", async () => {
+    const { db, session } = await openTestSession();
+    let repo: Repository | undefined;
+    await session.run(async (r) => {
+      repo = r;
+    });
+    if (repo === undefined) throw new Error("repositorio nao capturado");
+    const otherTab = await openRepository({
+      db,
+      now: testClock(1_800_000_000_000),
+      randomChunk: seededRandom(2),
+      currentMemberId: () => null,
+      today: () => "2026-10-06",
+    });
+    const readId = repo.localMemberId;
+    vi.spyOn(repo, "localMemberId").mockImplementationOnce(async () => {
+      // A outra aba conclui o onboarding no meio do reload desta.
+      await otherTab.createLocalMember(ANA);
+      return readId();
+    });
+
+    await session.reload();
+    expect(session.localMemberId.value).not.toBeNull();
+    expect(session.localMember.value?.name).toBe("Ana");
   });
 
   it("run antes do init rejeita", async () => {

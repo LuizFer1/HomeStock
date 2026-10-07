@@ -84,4 +84,16 @@ describe("App", () => {
     router.push({ kind: "nada" });
     await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
   });
+
+  it("duas telas desconhecidas empilhadas voltam as duas", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { router, history } = setup(session);
+    router.push({ kind: "nada" });
+    router.push({ kind: "outra" });
+    await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
+    router.onPopState();
+    await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(2));
+    router.onPopState();
+    expect(router.stack.value).toEqual([]);
+  });
 });
