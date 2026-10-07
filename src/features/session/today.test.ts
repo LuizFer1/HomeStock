@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localToday } from "./today";
+import { localDayOf, localToday } from "./today";
 
 describe("localToday", () => {
   it("usa o dia local, nao o UTC", () => {
@@ -12,5 +12,11 @@ describe("localToday", () => {
 
   it("mes e dia de dois digitos ficam como estao", () => {
     expect(localToday(new Date(2026, 11, 31, 12))).toBe("2026-12-31");
+  });
+});
+
+describe("localDayOf", () => {
+  it("devolve o dia local do ISO", () => {
+    expect(localDayOf(new Date(2026, 9, 6, 23, 30).toISOString())).toBe("2026-10-06");
   });
 });

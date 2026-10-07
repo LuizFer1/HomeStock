@@ -13,3 +13,8 @@ export function localDate(iso: string): string | null {
   if (Number.isNaN(date.getTime())) return null;
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
+
+/** Dia local 'YYYY-MM-DD' de um ISO (createdAt de outro aparelho incluso). */
+export function localDayOf(iso: string): string {
+  return localToday(new Date(iso));
+}
