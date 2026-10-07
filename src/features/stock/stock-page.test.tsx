@@ -259,6 +259,40 @@ describe("StockPage", () => {
     scrollTo.mockRestore();
   });
 
+  it("ao voltar do Detalhe o foco vai ao card aberto, uma vez so", async () => {
+    const { ctx, seeded } = await setup();
+    fireEvent.click(card("Arroz agulhinha"), { detail: 1 });
+    expect(ctx.stock.openedId.value).toBe(seeded?.arroz.id);
+    // O App desmonta a aba ao empilhar e a monta de novo ao voltar.
+    cleanup();
+    render(<StockPage ctx={ctx} />);
+    expect(document.activeElement).toBe(card("Arroz agulhinha"));
+    expect(ctx.stock.openedId.value).toBeNull();
+
+    cleanup();
+    render(<StockPage ctx={ctx} />);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("Editar pelo sheet tambem guarda o card e a rolagem", async () => {
+    const { ctx, seeded } = await setup();
+    fireEvent.contextMenu(card("Café em grãos"));
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    expect(ctx.router.top.value).toEqual({ kind: "item-edit", id: seeded?.cafeItem.id });
+    expect(ctx.stock.openedId.value).toBe(seeded?.cafeItem.id);
+    expect(ctx.stock.scrollY.value).toBe(window.scrollY);
+  });
+
+  it("card aberto que sumiu: o foco vai ao titulo", async () => {
+    const { ctx, session, seeded } = await setup();
+    fireEvent.click(card("Arroz agulhinha"), { detail: 1 });
+    cleanup();
+    await session.run((repo) => repo.deleteItem(seeded?.arroz.id ?? ""));
+    render(<StockPage ctx={ctx} />);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Estoque" }));
+    expect(ctx.stock.openedId.value).toBeNull();
+  });
+
   it("Desfazer com o card escondido pela busca foca o titulo", async () => {
     await setup();
     fireEvent.contextMenu(card("Café em grãos"));

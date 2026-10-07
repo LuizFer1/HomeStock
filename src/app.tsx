@@ -53,9 +53,13 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
   }
 
   const top = router.top.value;
-  // A fatia 4 troca o destino para o scanner, que abre o mesmo formulario.
-  const openNewItem = () => router.push({ kind: "item-new" });
   const tab = router.tab.value;
+  // A fatia 4 troca o destino para o scanner, que abre o mesmo formulario.
+  const openNewItem = () => {
+    // Do Estoque, como abrir um card: a lista volta na mesma posicao.
+    if (tab === "stock") ctx.stock.scrollY.value = window.scrollY;
+    router.push({ kind: "item-new" });
+  };
   const me = session.localMember.value;
 
   // Um so retorno com o toast e o aviso na mesma posicao: com dois ramos, a

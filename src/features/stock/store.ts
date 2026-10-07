@@ -1,4 +1,5 @@
 import { type Signal, signal } from "@preact/signals";
+import type { Ulid } from "../../domain/ids/ulid";
 import type { FilterKey } from "./rows";
 
 /**
@@ -10,6 +11,8 @@ export interface StockStore {
   filter: Signal<FilterKey>;
   /** `window.scrollY` guardado ao sair para uma tela empilhada. */
   scrollY: Signal<number>;
+  /** Card que abriu a tela empilhada: recebe o foco ao voltar (o botao desmontou). */
+  openedId: Signal<Ulid | null>;
 }
 
 export function createStockStore(): StockStore {
@@ -17,5 +20,6 @@ export function createStockStore(): StockStore {
     query: signal(""),
     filter: signal<FilterKey>("all"),
     scrollY: signal(0),
+    openedId: signal<Ulid | null>(null),
   };
 }

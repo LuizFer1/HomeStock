@@ -221,6 +221,27 @@ describe("App", () => {
     expect(await screen.findByText("Arroz", { selector: "[data-item-id] *" })).toBeTruthy();
   });
 
+  it("Escanear na aba Estoque guarda a rolagem", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { ctx } = setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Estoque" }));
+    await screen.findByRole("heading", { name: "Estoque" });
+    const scrollY = vi.spyOn(window, "scrollY", "get").mockReturnValue(420);
+    fireEvent.click(screen.getByRole("button", { name: "Escanear" }));
+    scrollY.mockRestore();
+    expect(ctx.stock.scrollY.value).toBe(420);
+    expect(ctx.stock.openedId.value).toBeNull();
+  });
+
+  it("Escanear no Inicio nao mexe na rolagem do Estoque", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { ctx } = setup(session);
+    const scrollY = vi.spyOn(window, "scrollY", "get").mockReturnValue(420);
+    fireEvent.click(screen.getByRole("button", { name: "Escanear" }));
+    scrollY.mockRestore();
+    expect(ctx.stock.scrollY.value).toBe(0);
+  });
+
   it("o toast aparece na aba e numa tela empilhada", async () => {
     const { session } = await openTestSession({ member: ANA });
     const { ctx } = setup(session);

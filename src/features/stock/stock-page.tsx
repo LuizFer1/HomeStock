@@ -66,12 +66,21 @@ export function StockPage({ ctx }: StockPageProps): JSX.Element {
     // Volta a posicao de antes do Detalhe, uma vez so: zerada aqui, a troca
     // de aba seguinte nao pula para uma posicao velha.
     const saved = stock.scrollY.peek();
-    if (saved === 0) return;
-    stock.scrollY.value = 0;
-    // O happy-dom nao implementa scrollTo.
-    try {
-      window.scrollTo(0, saved);
-    } catch {}
+    if (saved !== 0) {
+      stock.scrollY.value = 0;
+      // O happy-dom nao implementa scrollTo.
+      try {
+        window.scrollTo(0, saved);
+      } catch {}
+    }
+    // Depois da rolagem: o foco volta ao card que abriu a tela (sem rolar de
+    // novo), ou ao titulo se ele sumiu. Uma vez so, como a rolagem.
+    const opened = stock.openedId.peek();
+    if (opened === null) return;
+    stock.openedId.value = null;
+    const target =
+      document.querySelector<HTMLElement>(`[data-item-id="${opened}"]`) ?? heading.current;
+    target?.focus({ preventScroll: true });
   }, []);
 
   useEffect(() => {
@@ -85,6 +94,7 @@ export function StockPage({ ctx }: StockPageProps): JSX.Element {
 
   function push(kind: "item" | "item-edit", id: Ulid) {
     stock.scrollY.value = window.scrollY;
+    stock.openedId.value = id;
     router.push({ kind, id });
   }
 
