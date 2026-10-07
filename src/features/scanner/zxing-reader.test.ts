@@ -22,10 +22,11 @@ describe("createZxingReader", () => {
     zxing.prepareZXingModule.mockResolvedValueOnce({});
     // happy-dom nao tem canvas 2d: o preparo e o que interessa aqui.
     await createZxingReader().catch(() => {});
-    const { overrides } = zxing.prepareZXingModule.mock.calls[0]?.[0] as {
+    expect(zxing.prepareZXingModule).toHaveBeenCalledOnce();
+    const options = zxing.prepareZXingModule.mock.calls[0]?.[0] as {
       overrides: { locateFile: (path: string, prefix: string) => string };
     };
-    expect(overrides.locateFile("zxing_reader.wasm", "https://x/")).toBe(
+    expect(options.overrides.locateFile("zxing_reader.wasm", "https://x/")).toBe(
       "/HomeStock/assets/zxing_reader-AbC1.wasm",
     );
   });
