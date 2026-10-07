@@ -8,13 +8,13 @@ import type { ListMark } from "../model/list-mark";
 import type { Movement } from "../model/movement";
 import type { PrefValues } from "../model/prefs";
 import { consumptionOf } from "./consumption";
-import { listStatusOf, liveMarkOf } from "./shopping";
+import { listStatusOf, liveMarksByItem } from "./shopping";
 import { daysBetween } from "./stock";
 
 export type AlertGroup = "today" | "week" | "older";
 export type ActivityKind = "use" | "restock" | "request";
 
-interface AlertBase {
+export interface AlertBase {
   /** Identidade na tela (data-alert-key, key do Preact). */
   key: string;
   /** Chaves gravadas em alertStates ao resolver. */
@@ -139,7 +139,8 @@ function compareAlerts(a: Alert, b: Alert): number {
   if (a.kind === "exp" && b.kind === "exp" && a.daysLeft !== b.daysLeft) {
     return a.daysLeft - b.daysLeft;
   }
-  return collator.compare(a.item.name, b.item.name);
+  // A chave desempata nomes iguais: a ordem nao depende da ordem das tabelas.
+  return collator.compare(a.item.name, b.item.name) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 }
 
 function stockGroup(since: string, input: AlertInput): AlertGroup {
@@ -263,6 +264,7 @@ export function alertsOf(input: AlertInput): AlertList {
     if (list === undefined) byItem.set(m.itemId, [m]);
     else list.push(m);
   }
+  const marks = liveMarksByItem(input.items, input.movements, input.listMarks);
   const done = resolvedKeys(input.alertStates);
   const isDone = (keys: readonly string[]) => keys.every((k) => done.has(k));
 
@@ -280,7 +282,12 @@ export function alertsOf(input: AlertInput): AlertList {
         // Nunca esteve acima desde o cadastro: o episodio comeca no proprio item.
         const since = anchor?.createdAt ?? item.createdAt;
         const key = `${kind}:${item.id}:${anchor?.id ?? "start"}`;
-        const resolveKeys = [key];
+        // Esgotar cruza out e low no mesmo movimento: resolver o out resolve o low
+        // dele, senao repor 1 unidade faria o low reaparecer como pendente.
+        const resolveKeys =
+          kind === "out" && ep.low !== null && ep.low.id === ep.out?.id
+            ? [key, `low:${item.id}:${ep.low.id}`]
+            : [key];
         const group = stockGroup(since, input);
         groups[group].push({
           kind,
@@ -292,13 +299,7 @@ export function alertsOf(input: AlertInput): AlertList {
           qty: ep.qty,
           since,
           sinceMovement: anchor,
-          onList:
-            listStatusOf(
-              item,
-              ep.qty,
-              liveMarkOf(item, input.movements, input.listMarks),
-              prefs.autoList,
-            ) !== "off",
+          onList: listStatusOf(item, ep.qty, marks.get(item.id), prefs.autoList) !== "off",
           average: consumptionOf(item.id, own).average,
         });
       }

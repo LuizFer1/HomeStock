@@ -254,6 +254,59 @@ describe("alertsOf: validade", () => {
   });
 });
 
+describe("alertsOf: bordas", () => {
+  it("ancora start: chave low:<id>:start e since do cadastro", () => {
+    const item = fakeItem({ min: 3, createdAt: "2026-10-04T09:00:00.000Z" });
+    const list = alertsOf(input({ items: [item], movements: [fakeMovement(item.id, 1)] }));
+    const alert = list.week[0];
+    expect(alert?.key).toBe(`low:${item.id}:start`);
+    if (alert?.kind === "low") {
+      expect(alert.since).toBe(item.createdAt);
+      expect(alert.sinceMovement).toBeNull();
+    }
+  });
+
+  it("dois exp saem por dias restantes", () => {
+    const later = fakeItem({ name: "A", min: 0, expiresAt: "2026-10-07" });
+    const sooner = fakeItem({ name: "B", min: 0, expiresAt: "2026-10-06" });
+    const movements = [fakeMovement(later.id, 1), fakeMovement(sooner.id, 1)];
+    const list = alertsOf(input({ items: [later, sooner], movements }));
+    expect(list.today.map((a) => (a.kind === "exp" ? a.item.name : ""))).toEqual(["B", "A"]);
+  });
+
+  it("alertLow desligado ainda deixa o exp do mesmo item", () => {
+    const item = fakeItem({ min: 5, expiresAt: "2026-10-07" });
+    const list = alertsOf(
+      input({
+        items: [item],
+        movements: [fakeMovement(item.id, 1)],
+        prefs: { ...PREFS, alertLow: false },
+      }),
+    );
+    expect(list.today.map((a) => a.kind)).toEqual(["exp"]);
+  });
+
+  it("resolver o out tambem resolve o low da mesma ancora", () => {
+    const item = fakeItem({ min: 2 });
+    const up = fakeMovement(item.id, 2, { createdAt: "2026-10-01T12:00:00.000Z" });
+    const down = fakeMovement(item.id, -2, { createdAt: "2026-10-06T08:00:00.000Z" });
+    const base = [up, down];
+    const out = alertsOf(input({ items: [item], movements: base })).today[0];
+    expect(out?.kind).toBe("out");
+    expect(out?.resolveKeys).toEqual([`out:${item.id}:${down.id}`, `low:${item.id}:${down.id}`]);
+    const states = out?.resolveKeys.map((k) => alertState(k)) ?? [];
+    const after = alertsOf(
+      input({
+        items: [item],
+        movements: [...base, fakeMovement(item.id, 1, { createdAt: "2026-10-06T12:00:00.000Z" })],
+        alertStates: states,
+      }),
+    );
+    expect(after.total).toBe(1);
+    expect(after.pending).toBe(0);
+  });
+});
+
 describe("alertsOf: resolvido e ordem", () => {
   it("linha viva resolve; linha apagada nao", () => {
     const item = fakeItem({ name: "Iogurte", min: 0, expiresAt: "2026-10-07" });

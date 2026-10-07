@@ -106,6 +106,20 @@ function liveMarks(
 }
 
 /**
+ * `liveMarkOf` para varios itens de uma vez: uma passada nos movimentos e nas
+ * marcas em vez de uma por item. Itens apagados ficam de fora.
+ */
+export function liveMarksByItem(
+  items: readonly Item[],
+  movements: readonly Movement[],
+  marks: readonly ListMark[],
+): Map<Ulid, ListMark> {
+  const alive = new Map<Ulid, Item>();
+  for (const item of items) if (isAlive(item)) alive.set(item.id, item);
+  return liveMarks(alive, movements, marks);
+}
+
+/**
  * Marca viva do item, ja sem a marca velha demais (regra do repor) e sem a apagada.
  * Use esta funcao, nunca um find cru em `marks`.
  */
