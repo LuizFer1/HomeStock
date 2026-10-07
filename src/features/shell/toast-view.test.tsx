@@ -91,6 +91,12 @@ describe("ToastView", () => {
     rerender(<ToastView store={store} raised />);
     expect(pill().className).toContain("bottom-[164px]");
     expect(pill().className).not.toContain("bottom-[100px]");
+    rerender(<ToastView store={store} raised={false} footer />);
+    expect(pill().className).toContain("bottom-[192px]");
+    expect(pill().className).not.toContain("bottom-[100px]");
+    rerender(<ToastView store={store} raised footer />);
+    expect(pill().className).toContain("bottom-[256px]");
+    expect(pill().className).not.toContain("bottom-[164px]");
   });
 
   it("some sozinho aos 4 s", () => {

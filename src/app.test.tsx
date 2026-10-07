@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { fakeUpdate, testContext } from "./app-context.fake";
 import { openTestDb, seededRandom, testClock } from "./data/test-db.fake";
+import { cafe } from "./domain/model/item.fake";
 import { createOnboardingStore } from "./features/onboarding/store";
 import { createSession, type Session } from "./features/session/session";
 import { ANA, openTestSession } from "./features/session/test-session.fake";
@@ -277,6 +278,22 @@ describe("App", () => {
     const { ctx } = setup(session, true);
     act(() => ctx.toast.show("Oi"));
     expect(screen.getByText("Oi").parentElement?.className).toContain("bottom-[164px]");
+  });
+
+  it("a aba Compras mostra a lista", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    await session.run((r) => r.createItem(cafe(), 1));
+    const { ctx } = setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Compras" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Compras" })).toBeTruthy();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Café em grãos Torrado 1 kg, 3 pct · Abaixo do mínimo",
+      }),
+    ).toBeTruthy();
+    // O rodape da aba mora a 100 px: o toast sobe acima dele.
+    act(() => ctx.toast.show("x"));
+    expect(screen.getByText("x").parentElement?.className).toContain("bottom-[192px]");
   });
 
   it("durante o onboarding nao mostra o toast", async () => {

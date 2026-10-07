@@ -2,19 +2,13 @@ import { Fragment } from "preact";
 import type { AppContext } from "./app-context";
 import { MemberWizard } from "./features/onboarding/member-wizard";
 import type { OnboardingStore } from "./features/onboarding/store";
-import type { Tab } from "./features/shell/route";
 import { TabBar } from "./features/shell/tab-bar";
 import { ToastView } from "./features/shell/toast-view";
+import { ShoppingPage } from "./features/shopping/shopping-page";
 import { StockPage } from "./features/stock/stock-page";
 import { Avatar } from "./features/ui/avatar";
 import { UpdateBanner } from "./features/update/update-banner";
 import { renderScreen } from "./screens";
-
-const TITLES: Record<Tab, string> = {
-  home: "Início",
-  stock: "Estoque",
-  shopping: "Compras",
-};
 
 export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: OnboardingStore }) {
   const { router, session, update } = ctx;
@@ -36,8 +30,6 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
   }
 
   const banner = update.ready.value && <UpdateBanner onApply={update.apply} />;
-  // Sobe para 164 px quando o aviso de versao (tambem a 100 px) esta visivel.
-  const toast = <ToastView store={ctx.toast} raised={update.ready.value} />;
 
   if (onboarding.needsOnboarding.value) {
     return (
@@ -61,6 +53,15 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
     router.push({ kind: "scan" });
   };
   const me = session.localMember.value;
+  // Sobe para 164 px quando o aviso de versao (tambem a 100 px) esta visivel, e acima do
+  // rodape fixo da aba Compras.
+  const toast = (
+    <ToastView
+      store={ctx.toast}
+      raised={update.ready.value}
+      footer={top === null && tab === "shopping"}
+    />
+  );
 
   // Um so retorno com o toast e o aviso na mesma posicao: com dois ramos, a
   // regiao viva do toast remontava a cada push/pop e renascia ja com texto.
@@ -73,28 +74,27 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
       ) : tab === "stock" ? (
         // A pagina traz o proprio `main` e le os sinais dentro dela.
         <StockPage ctx={ctx} />
+      ) : tab === "shopping" ? (
+        <ShoppingPage ctx={ctx} />
       ) : (
+        // So o Inicio sobra: as outras abas trazem o proprio `main`.
         <main class="no-scrollbar px-[22px] pt-11 pb-[110px]">
-          {tab === "home" ? (
-            <div class="flex items-center justify-between">
-              <h1 class="text-[36px]">{TITLES[tab]}</h1>
-              <button
-                type="button"
-                aria-label="Ajustes"
-                class="rounded-pill"
-                onClick={() => router.push({ kind: "settings" })}
-              >
-                {/* Sem a linha do morador (apagada no sync), o botao fica: "Sair da casa" mora nos Ajustes. */}
-                {me !== null ? (
-                  <Avatar name={me.name} color={me.color} photo={me.photo} size={40} />
-                ) : (
-                  <Avatar name="" color="cacau" photo={null} size={40} />
-                )}
-              </button>
-            </div>
-          ) : (
-            <h1 class="text-[36px]">{TITLES[tab]}</h1>
-          )}
+          <div class="flex items-center justify-between">
+            <h1 class="text-[36px]">Início</h1>
+            <button
+              type="button"
+              aria-label="Ajustes"
+              class="rounded-pill"
+              onClick={() => router.push({ kind: "settings" })}
+            >
+              {/* Sem a linha do morador (apagada no sync), o botao fica: "Sair da casa" mora nos Ajustes. */}
+              {me !== null ? (
+                <Avatar name={me.name} color={me.color} photo={me.photo} size={40} />
+              ) : (
+                <Avatar name="" color="cacau" photo={null} size={40} />
+              )}
+            </button>
+          </div>
         </main>
       )}
       {banner}
