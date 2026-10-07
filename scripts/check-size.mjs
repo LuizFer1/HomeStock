@@ -33,7 +33,8 @@ import { gzipSync } from "node:zlib";
  *   95kb  — fatia 6, Inicio e Alertas: alertStates, as projecoes de alertas e da
  *           atividade, a tela Alertas e a Atividade (83.56kb ate a tela Alertas)
  *           levaram o app a 85.88kb (79.41kb JS + 6.47kb CSS) com o Inicio novo,
- *           acima do teto de 85kb; medida final da fatia 6, 9.12kb de folga.
+ *           acima do teto de 85kb. Com as correcoes da revisao, medida final da
+ *           fatia 6 em 86.22kb (79.75kb JS + 6.47kb CSS), 8.78kb de folga.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact. O leitor zxing
