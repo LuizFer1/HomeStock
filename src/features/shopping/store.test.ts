@@ -134,6 +134,47 @@ describe("fila serial dos comandos", () => {
     expect(markOf()).toBeUndefined();
   });
 
+  it("undoPin com marca anterior so solta a fixacao e sem marca apaga", async () => {
+    const { session, item, store, markOf } = await setup();
+    await session.run((repo) => repo.markItem(item.id, { qty: 4 }));
+    await store.pin(item.id);
+    await store.undoPin(item.id, true);
+    expect(markOf()).toMatchObject({ pinned: 0, qty: 4 });
+    await store.unpin(item.id);
+    await store.pin(item.id);
+    await store.undoPin(item.id, false);
+    expect(markOf()).toBeUndefined();
+  });
+
+  it("undoPin com a marca ja fora da lista nao faz nada nem falha", async () => {
+    const { item, store, markOf } = await setup();
+    await store.pin(item.id);
+    await store.unpin(item.id);
+    await expect(store.undoPin(item.id, false)).resolves.toBeUndefined();
+    await expect(store.undoPin(item.id, true)).resolves.toBeUndefined();
+    expect(markOf()).toBeUndefined();
+  });
+
+  it("recolocar o nome logo depois de remover na fila funciona", async () => {
+    const { store } = await setup();
+    const leite = await store.addExtra("Leite");
+    const removed = store.removeExtra(leite.id);
+    const again = store.addExtra("Leite");
+    await removed;
+    await expect(again).resolves.toMatchObject({ name: "Leite" });
+  });
+
+  it("undoCheckout espera os toques pendentes", async () => {
+    const { session, item, store, list } = await setup();
+    await store.toggle({ kind: "item", id: item.id });
+    const receipt = await store.checkout(list());
+    const undo = store.undoCheckout(receipt);
+    const tap = store.toggle({ kind: "item", id: item.id });
+    await Promise.all([undo, tap]);
+    // O desfazer entrou primeiro: a marca voltou marcada e o toque a desmarcou.
+    expect(session.data.value.listMarks.find((m) => isAlive(m))?.checked).toBe(0);
+  });
+
   it("o repor com um ajuste pendente leva a quantidade e o preco ajustados", async () => {
     const { session, item, store, list } = await setup();
     await store.toggle({ kind: "item", id: item.id });

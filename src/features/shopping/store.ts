@@ -4,6 +4,7 @@ import { isAlive } from "../../domain/model/base";
 import { type ListExtra, normalizeExtraName } from "../../domain/model/list-extra";
 import {
   checkedEntries,
+  liveMarkOf,
   type ShoppingEntry,
   type ShoppingList,
 } from "../../domain/projections/shopping";
@@ -23,6 +24,11 @@ export interface ShoppingStore {
   pin: (itemId: Ulid) => Promise<void>;
   unpin: (itemId: Ulid) => Promise<void>;
   restorePin: (itemId: Ulid) => Promise<void>;
+  /**
+   * Desfaz o "entrou na lista": com marca anterior so solta a fixacao (as anotacoes ficam),
+   * sem marca anterior apaga. Marca que ja saiu da lista nao e erro: nada a desfazer.
+   */
+  undoPin: (itemId: Ulid, hadMark: boolean) => Promise<void>;
   checkout: (list: ShoppingList) => Promise<CheckoutReceipt>;
   undoCheckout: (receipt: CheckoutReceipt) => Promise<void>;
 }
@@ -60,11 +66,14 @@ export function createShoppingStore(session: Session): ShoppingStore {
     async addExtra(name) {
       const clean = normalizeExtraName(name);
       const key = foldText(clean);
-      const taken = session.data.value.listExtras.some(
-        (e) => isAlive(e) && foldText(e.name) === key,
-      );
-      if (taken) throw new Error(`${clean} já está na lista.`);
-      return session.run((repo) => repo.addListExtra(clean));
+      // Conferir e gravar juntos, na fila: um remover pendente do mesmo nome libera o nome antes.
+      return enqueue(async () => {
+        const taken = session.data.value.listExtras.some(
+          (e) => isAlive(e) && foldText(e.name) === key,
+        );
+        if (taken) throw new Error(`${clean} já está na lista.`);
+        return session.run((repo) => repo.addListExtra(clean));
+      });
     },
     async removeExtra(id) {
       await enqueue(() => session.run((repo) => repo.removeListExtra(id)));
@@ -92,8 +101,19 @@ export function createShoppingStore(session: Session): ShoppingStore {
       // decide o que ainda esta marcado (a lista da tela so limita o conjunto).
       return enqueue(() => session.run((repo) => repo.checkout({ items, extraIds })));
     },
+    async undoPin(itemId, hadMark) {
+      await enqueue(async () => {
+        const item = session.data.value.items.find((i) => i.id === itemId && isAlive(i));
+        if (item === undefined) return;
+        const d = session.data.value;
+        if (liveMarkOf(item, d.movements, d.listMarks) === undefined) return;
+        await session.run((repo) =>
+          hadMark ? repo.markItem(itemId, { pinned: 0 }) : repo.unpinItem(itemId),
+        );
+      });
+    },
     async undoCheckout(receipt) {
-      await session.run((repo) => repo.undoCheckout(receipt));
+      await enqueue(() => session.run((repo) => repo.undoCheckout(receipt)));
     },
   };
 }

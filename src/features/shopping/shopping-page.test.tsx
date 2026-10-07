@@ -6,6 +6,7 @@ import { fakeUpdate, testContext } from "../../app-context.fake";
 import { isAlive } from "../../domain/model/base";
 import { cafe } from "../../domain/model/item.fake";
 import { quantities } from "../../domain/projections/stock";
+import { ItemDetailPage } from "../item/detail-page";
 import type { Session } from "../session/session";
 import { ANA, openTestSession } from "../session/test-session.fake";
 import { ToastView } from "../shell/toast-view";
@@ -427,5 +428,28 @@ describe("ShoppingPage", () => {
     const empty = screen.getByText("Nada para comprar.");
     const section = screen.getByRole("heading", { level: 2, name: "Pedidos da casa" });
     expect(empty.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("Detalhe para Compras", () => {
+  it("fixar no Detalhe aparece em Pedidos da casa e o Repor soma ao estoque", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const item = await session.run((r) => r.createItem(cafe(), 5));
+    const { ctx } = testContext(session);
+    render(<ItemDetailPage ctx={ctx} id={item.id} />);
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar à lista de compras" }));
+    await screen.findByRole("button", { name: "Tirar da lista de compras" });
+    cleanup();
+
+    render(<ShoppingPage ctx={ctx} />);
+    const section = screen.getByRole("region", { name: "Pedidos da casa" });
+    const box = within(section).getByRole("checkbox", { name: /Café em grãos.*pedido por Ana/ });
+    fireEvent.click(box);
+    await waitFor(() => expect(box.getAttribute("aria-checked")).toBe("true"));
+    fireEvent.click(repor());
+    await waitFor(() =>
+      expect(quantities(session.data.value.movements).get(item.id)).toBeGreaterThan(5),
+    );
+    expect(session.data.value.listMarks.every((m) => !isAlive(m))).toBe(true);
   });
 });

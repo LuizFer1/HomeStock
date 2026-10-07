@@ -375,7 +375,9 @@ describe("ItemDetailPage", () => {
     });
 
     it("dois cliques seguidos gravam uma vez", async () => {
-      const { session, item } = await setup({ qty: 5 });
+      const { ctx, session, item } = await setup({ qty: 5 });
+      const pin = vi.fn(ctx.shopping.pin);
+      ctx.shopping.pin = pin;
       const button = screen.getByRole("button", { name: ADD });
       fireEvent.click(button);
       fireEvent.click(button);
@@ -383,6 +385,32 @@ describe("ItemDetailPage", () => {
       const all = session.data.value.listMarks.filter((m) => m.itemId === item.id);
       expect(all).toHaveLength(1);
       expect(all[0]?.pinned).toBe(1);
+      expect(pin).toHaveBeenCalledTimes(1);
+    });
+
+    it("Desfazer do entrou na lista preserva a marca que ja existia", async () => {
+      const { session, item } = await setup({
+        qty: 5,
+        prepare: async (s, i) => {
+          await s.run((repo) => repo.markItem(i.id, { qty: 4, checked: 1 }));
+        },
+      });
+      fireEvent.click(screen.getByRole("button", { name: ADD }));
+      const undo = await screen.findByRole("button", { name: "Desfazer" });
+      fireEvent.click(undo);
+      await screen.findByRole("button", { name: ADD });
+      expect(marks(session, item.id)[0]).toMatchObject({ pinned: 0, qty: 4, checked: 1 });
+    });
+
+    it("Desfazer com a marca ja fora da lista nao falha", async () => {
+      const { session, item } = await setup({ qty: 5 });
+      fireEvent.click(screen.getByRole("button", { name: ADD }));
+      const undo = await screen.findByRole("button", { name: "Desfazer" });
+      await session.run((repo) => repo.unpinItem(item.id));
+      fireEvent.click(undo);
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Desfazer" })).toBeNull());
+      expect(screen.queryByText(/Não foi possível/)).toBeNull();
+      expect(marks(session, item.id)).toHaveLength(0);
     });
 
     it("o Desfazer do + devolve o item fixado a lista", async () => {

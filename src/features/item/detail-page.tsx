@@ -123,7 +123,7 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
     // Botao e pilula sao elementos diferentes: se o foco estava no que saiu, vai ao novo.
     const active = document.activeElement;
     const lost = active === null || active === document.body || !active.isConnected;
-    if (lost) cta.current?.querySelector<HTMLElement>("button, p")?.focus();
+    if (lost) cta.current?.querySelector<HTMLElement>("[data-cta]")?.focus();
   }, [ctaKind]);
 
   // Apagado em outro lugar (outra aba, sync): nada a mostrar, volta.
@@ -168,11 +168,12 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
           },
         });
       } else {
+        const hadMark = liveMarkOf(item, data.movements, data.listMarks) !== undefined;
         await shopping.pin(id);
         toast.show(`${name} entrou na lista`, {
           label: "Desfazer",
           run: async () => {
-            await shopping.unpin(id);
+            await shopping.undoPin(id, hadMark);
             refocusHeading();
           },
         });
@@ -198,13 +199,7 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
         label: "Desfazer",
         run: async () => {
           await items.undo(movement.id, movement.clearedMarkId);
-          // O botao do toast some ao fechar; o foco volta ao titulo, se a
-          // pessoa ainda esta no Detalhe e nao foi para outro lugar.
-          nextFrame(() => {
-            const active = document.activeElement;
-            const lost = active === null || active === document.body || !active.isConnected;
-            if (lost && heading.current?.isConnected) heading.current.focus();
-          });
+          refocusHeading();
         },
       });
     } catch (cause) {
@@ -334,6 +329,7 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
         <div ref={cta} class="mt-4">
           {listStatus === "auto" ? (
             <p
+              data-cta
               tabIndex={-1}
               class="flex min-h-[52px] items-center justify-center gap-1.5 rounded-pill bg-accent-2-100 font-semibold text-[14px] text-accent-2-800"
             >
@@ -343,6 +339,7 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
           ) : (
             // Mesmo elemento nos dois estados: o foco fica nele ao trocar o rotulo.
             <Button
+              data-cta
               block
               class="min-h-[52px] text-[16px]"
               variant={listStatus === "pinned" ? "secondary" : "primary"}
