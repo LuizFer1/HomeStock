@@ -1,6 +1,7 @@
 import type { VNode } from "preact";
 import { useEffect } from "preact/hooks";
 import type { AppContext } from "./app-context";
+import { ItemDetailPage } from "./features/item/detail-page";
 import { MemberWizard } from "./features/onboarding/member-wizard";
 import { PlacesPage } from "./features/settings/places-page";
 import { SettingsPage } from "./features/settings/settings-page";
@@ -70,6 +71,8 @@ export const SCREENS = {
   settings: (s, ctx) => <SettingsScreen ctx={ctx} screen={s} />,
   places: (s, ctx) => <PlacesScreen ctx={ctx} screen={s} />,
   profile: (s, ctx) => <ProfileScreen ctx={ctx} screen={s} />,
+  // Sem id nao ha item a mostrar: null cai no UnknownScreen e volta.
+  item: (s, ctx) => (s.id ? <ItemDetailPage ctx={ctx} id={s.id} /> : null),
 } as const satisfies Readonly<Record<string, ScreenRender>>;
 
 export type ScreenKind = keyof typeof SCREENS;

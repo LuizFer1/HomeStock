@@ -4,11 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppContext } from "../../app-context";
 import { testContext } from "../../app-context.fake";
 import { cafe } from "../../domain/model/item.fake";
+import type { ItemStore } from "../item/store";
 import type { Session } from "../session/session";
 import { ANA, openTestSession } from "../session/test-session.fake";
 import { ToastView } from "../shell/toast-view";
 import { LONG_PRESS_MS } from "../ui/long-press";
 import { StockPage } from "./stock-page";
+
+/** O Estoque nao usa o stepper; os fakes de `items` so precisam do tipo completo. */
+const NO_STEP: Pick<ItemStore, "step" | "undo"> = {
+  step: () => Promise.reject(new Error("nao usado")),
+  undo: async () => {},
+};
 
 afterEach(() => {
   cleanup();
@@ -153,6 +160,7 @@ describe("StockPage", () => {
     await setup({
       overrides: {
         items: {
+          ...NO_STEP,
           remove: async () => {
             throw new Error("Disco cheio.");
           },
@@ -168,7 +176,7 @@ describe("StockPage", () => {
 
   it("dois toques em Deletar removem uma vez so", async () => {
     const remove = vi.fn(async () => {});
-    await setup({ overrides: { items: { remove, restore: async () => {} } } });
+    await setup({ overrides: { items: { ...NO_STEP, remove, restore: async () => {} } } });
     fireEvent.contextMenu(card("Café em grãos"));
     const del = screen.getByRole("button", { name: "Deletar" });
     fireEvent.click(del);
@@ -178,7 +186,9 @@ describe("StockPage", () => {
   });
 
   it("o toast some depois de 4000 ms", async () => {
-    await setup({ overrides: { items: { remove: async () => {}, restore: async () => {} } } });
+    await setup({
+      overrides: { items: { ...NO_STEP, remove: async () => {}, restore: async () => {} } },
+    });
     vi.useFakeTimers();
     fireEvent.contextMenu(card("Café em grãos"));
     fireEvent.click(screen.getByRole("button", { name: "Deletar" }));
@@ -266,6 +276,7 @@ describe("StockPage", () => {
     await setup({
       overrides: {
         items: {
+          ...NO_STEP,
           remove: async () => {
             throw new Error("Disco cheio.");
           },
