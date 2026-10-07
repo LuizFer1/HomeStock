@@ -118,4 +118,11 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Entrar no HomeStock" }));
     expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
   });
+
+  it("durante o onboarding nao mostra o aviso de versao nova", async () => {
+    const { session } = await openTestSession();
+    setup(session, true);
+    expect(screen.getByText("Como podemos te chamar?")).toBeTruthy();
+    expect(screen.queryByText("Nova versão disponível")).toBeNull();
+  });
 });

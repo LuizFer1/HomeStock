@@ -66,8 +66,8 @@ export function App({
   if (onboarding.needsOnboarding.value) {
     return (
       <div class="mx-auto min-h-dvh max-w-[480px]">
+        {/* Sem UpdateBanner: ele e fixed acima da tab bar e cobriria o CTA do wizard. */}
         <MemberWizard mode="create" onSubmit={onboarding.complete} processFile={processFile} />
-        {banner}
       </div>
     );
   }

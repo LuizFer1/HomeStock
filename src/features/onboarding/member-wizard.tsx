@@ -106,11 +106,11 @@ export function MemberWizard({
   }
 
   return (
-    <div class="flex min-h-dvh flex-col bg-bg">
-      <div class="flex min-h-[50px] items-center gap-3 px-[22px]">
+    <div class="flex h-dvh flex-col bg-bg">
+      <div class="flex min-h-[50px] shrink-0 items-center gap-3 px-[22px] pt-1.5">
         {step > 0 || edit ? (
           <IconButton label="Voltar" onClick={back}>
-            <ChevronLeft size={22} strokeWidth={2.75} />
+            <ChevronLeft size={20} strokeWidth={2.75} />
           </IconButton>
         ) : (
           <span class="size-11 shrink-0" />
@@ -128,7 +128,7 @@ export function MemberWizard({
         </span>
       </div>
 
-      <main class="no-scrollbar flex-1 px-[22px] pt-6">
+      <main class="no-scrollbar min-h-0 flex-1 overflow-y-auto px-[22px] pt-6 pb-4">
         {step === 0 && (
           <>
             {!edit && (
@@ -137,7 +137,7 @@ export function MemberWizard({
               </span>
             )}
             <h1 class="mt-3 text-[36px]">Como podemos te chamar?</h1>
-            <p class="mt-2 text-[15px] text-neutral-700">
+            <p class="mt-2 text-[15px] text-neutral-800">
               Seu nome aparece para quem divide a casa com você.
             </p>
             <TextField
@@ -147,16 +147,16 @@ export function MemberWizard({
               maxLength={MAX_MEMBER_NAME}
               autoFocus
               value={name}
-              class="mt-6"
+              class="mt-2"
               onInput={(event) => setName(event.currentTarget.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !nameEmpty) advance();
               }}
             />
-            <div class="mt-5 flex items-center gap-3 rounded-pill bg-neutral-100 p-2 pr-4">
+            <div class="mt-6 flex items-center gap-3 rounded-pill bg-neutral-100 py-2.5 pr-4 pl-2.5">
               <Avatar name={shown} color={color} photo={photo} size={40} />
               <div class="min-w-0">
-                <p class="truncate text-[14px]">
+                <p class="truncate text-[13px]">
                   <strong>{shown}</strong> adicionou Café em grãos
                 </p>
                 <p class="text-[11px] text-neutral-700">Prévia de como você aparece</p>
@@ -168,15 +168,17 @@ export function MemberWizard({
         {step === 1 && (
           <>
             <h1 class="text-[36px]">Qual é a sua cor?</h1>
-            <p class="mt-2 text-[15px] text-neutral-700">
+            <p class="mt-2 text-[15px] text-neutral-800">
               Ela marca o que é seu no histórico, na lista e nos alertas.
             </p>
-            <div class="mt-6 flex flex-col items-center gap-1 rounded-[32px] bg-surface p-4">
+            <div class="mt-6 flex items-center gap-4 rounded-[32px] bg-surface p-4">
               <Avatar name={shown} color={color} photo={photo} size={96} />
-              <p class="font-heading text-[24px]">{shown}</p>
-              <p class="font-semibold text-[13px] text-neutral-700">
-                {MEMBER_COLOR_STYLE[color].label}
-              </p>
+              <div class="min-w-0">
+                <p class="font-heading text-[24px] leading-[1.1]">{shown}</p>
+                <p class="mt-0.5 font-semibold text-[13px] text-neutral-700">
+                  {MEMBER_COLOR_STYLE[color].label}
+                </p>
+              </div>
             </div>
             <div class="mt-6">
               <ColorSwatches legend="Sua cor" value={color} onChange={setColor} />
@@ -187,19 +189,19 @@ export function MemberWizard({
         {step === 2 && (
           <>
             <h1 class="text-[36px]">Um sorriso pra casa</h1>
-            <p class="mt-2 text-[15px] text-neutral-700">
+            <p class="mt-2 text-[15px] text-neutral-800">
               Opcional. Sem foto, usamos sua inicial na sua cor.
             </p>
-            <div class="mt-6 flex flex-col items-center gap-2">
+            <div class="mt-[18px] flex flex-col items-center">
               <div
                 class="rounded-pill p-[10px]"
                 style={{ background: MEMBER_COLOR_STYLE[color].fill }}
               >
                 <Avatar name={shown} color={color} photo={photo} size={170} class="washed" />
               </div>
-              <p class="font-heading text-[24px]">{shown}</p>
+              <p class="mt-3.5 font-heading text-[24px]">{shown}</p>
             </div>
-            <div class="mt-6 flex gap-3">
+            <div class="mt-5 flex gap-2.5">
               <label class={`${BTN_SECONDARY} min-h-12 flex-1`}>
                 <Camera size={18} strokeWidth={2.75} />
                 Câmera
@@ -226,10 +228,10 @@ export function MemberWizard({
         )}
 
         {step === 3 && (
-          <div class="flex flex-col items-center pt-10 text-center">
+          <div>
             <Avatar name={shown} color={color} photo={photo} size={72} class="border-4 border-bg" />
-            <h1 class="mt-4 text-[36px]">Tudo pronto, {shown}!</h1>
-            <p class="mt-2 text-[15px] text-neutral-700">
+            <h1 class="mt-[18px] mb-2.5 text-[36px]">Tudo pronto, {shown}!</h1>
+            <p class="text-[15px] text-neutral-800">
               Seu estoque fica guardado neste aparelho e funciona sem internet.
             </p>
           </div>
@@ -242,7 +244,7 @@ export function MemberWizard({
         )}
       </main>
 
-      <div class="px-[22px] pt-2.5 pb-6">
+      <div class="shrink-0 px-[22px] pt-2.5 pb-6">
         <Button block class={CTA_CLASS} disabled={ctaDisabled} onClick={ctaAction}>
           {ctaLabel}
         </Button>
