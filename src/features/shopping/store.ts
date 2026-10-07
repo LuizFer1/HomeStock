@@ -1,0 +1,86 @@
+import type { CheckoutReceipt } from "../../data/repository";
+import type { Ulid } from "../../domain/ids/ulid";
+import { isAlive } from "../../domain/model/base";
+import { type ListExtra, normalizeExtraName } from "../../domain/model/list-extra";
+import type { ShoppingEntry, ShoppingList } from "../../domain/projections/shopping";
+import { foldText } from "../../domain/text/fold-text";
+import type { Session } from "../session/session";
+
+/** Comandos da lista de compras para as telas. */
+export interface ShoppingStore {
+  /** Fila serial: inverte a marca lida no banco. */
+  toggle: (entry: Pick<ShoppingEntry, "kind" | "id">) => Promise<void>;
+  /** Quantidade e preco da linha; qty igual a `entry.suggestion` grava null. */
+  adjust: (entry: ShoppingEntry, qty: number, priceMinor: number | null) => Promise<void>;
+  /** Recusa nome repetido: "{nome} já está na lista." */
+  addExtra: (name: string) => Promise<ListExtra>;
+  removeExtra: (id: Ulid) => Promise<void>;
+  restoreExtra: (id: Ulid) => Promise<void>;
+  pin: (itemId: Ulid) => Promise<void>;
+  unpin: (itemId: Ulid) => Promise<void>;
+  restorePin: (itemId: Ulid) => Promise<void>;
+  checkout: (list: ShoppingList) => Promise<CheckoutReceipt>;
+  undoCheckout: (receipt: CheckoutReceipt) => Promise<void>;
+}
+
+export function createShoppingStore(session: Session): ShoppingStore {
+  // Cada toque conta, mas um por vez: dois toques seguidos nao podem ler o mesmo valor.
+  let queue: Promise<unknown> = Promise.resolve();
+
+  return {
+    toggle(entry) {
+      const next = queue.then(() =>
+        session.run(async (repo) => {
+          if (entry.kind === "item") await repo.toggleItemMark(entry.id);
+          else await repo.toggleListExtra(entry.id);
+        }),
+      );
+      // A falha volta para quem tocou; a fila segue para o proximo toque.
+      queue = next.catch(() => {});
+      return next;
+    },
+    async adjust(entry, qty, priceMinor) {
+      const stored = qty === entry.suggestion ? null : qty;
+      await session.run(async (repo) => {
+        if (entry.kind === "item") await repo.markItem(entry.id, { qty: stored, priceMinor });
+        else await repo.updateListExtra(entry.id, { qty: stored, priceMinor });
+      });
+    },
+    // async: a validacao rejeita a promise em vez de lancar de forma sincrona.
+    async addExtra(name) {
+      const clean = normalizeExtraName(name);
+      const key = foldText(clean);
+      const taken = session.data.value.listExtras.some(
+        (e) => isAlive(e) && foldText(e.name) === key,
+      );
+      if (taken) throw new Error(`${clean} já está na lista.`);
+      return session.run((repo) => repo.addListExtra(clean));
+    },
+    async removeExtra(id) {
+      await session.run((repo) => repo.removeListExtra(id));
+    },
+    async restoreExtra(id) {
+      await session.run((repo) => repo.restoreListExtra(id));
+    },
+    async pin(itemId) {
+      await session.run((repo) => repo.markItem(itemId, { pinned: 1 }));
+    },
+    async unpin(itemId) {
+      await session.run((repo) => repo.unpinItem(itemId));
+    },
+    async restorePin(itemId) {
+      await session.run((repo) => repo.restoreItemMark(itemId));
+    },
+    checkout(list) {
+      const checked = [...list.auto, ...list.house].filter((e) => e.checked);
+      const items = checked
+        .filter((e) => e.kind === "item")
+        .map((e) => ({ itemId: e.id, qty: e.qty, unitPriceMinor: e.priceMinor }));
+      const extraIds = checked.filter((e) => e.kind === "extra").map((e) => e.id);
+      return session.run((repo) => repo.checkout({ items, extraIds }));
+    },
+    async undoCheckout(receipt) {
+      await session.run((repo) => repo.undoCheckout(receipt));
+    },
+  };
+}

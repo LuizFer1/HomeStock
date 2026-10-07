@@ -7,6 +7,7 @@ import type { Session } from "./features/session/session";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import { createToastStore } from "./features/shell/toast";
+import { createShoppingStore } from "./features/shopping/store";
 import { createStockStore } from "./features/stock/store";
 import type { UpdateStore } from "./features/update/store";
 
@@ -41,6 +42,7 @@ export function testContext(
     toast: createToastStore(),
     items: createItemStore(session),
     stock: createStockStore(),
+    shopping: createShoppingStore(session),
     today: () => "2026-10-06",
     processAvatar: async () => "data:image/webp;base64,AAA",
     processItemPhoto: async () => "data:image/webp;base64,AAA",

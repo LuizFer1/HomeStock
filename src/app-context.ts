@@ -4,6 +4,7 @@ import type { Session } from "./features/session/session";
 import type { SettingsStore } from "./features/settings/store";
 import type { Router } from "./features/shell/route";
 import type { ToastStore } from "./features/shell/toast";
+import type { ShoppingStore } from "./features/shopping/store";
 import type { StockStore } from "./features/stock/store";
 import type { UpdateStore } from "./features/update/store";
 
@@ -18,6 +19,8 @@ export interface AppContext {
   items: ItemStore;
   /** Busca, filtro e rolagem do Estoque, vivos entre idas ao Detalhe. */
   stock: StockStore;
+  /** Lista de compras: marcar, ajustar, pedidos e o repor em lote. */
+  shopping: ShoppingStore;
   /** 'YYYY-MM-DD' local, para status e notas de validade. */
   today: () => string;
   /** Pipeline da foto de perfil (o antigo `processFile`). */

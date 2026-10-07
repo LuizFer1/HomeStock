@@ -17,6 +17,7 @@ import { scopeResetDeps } from "./features/settings/reset-scope";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import { createToastStore } from "./features/shell/toast";
+import { createShoppingStore } from "./features/shopping/store";
 import { createStockStore } from "./features/stock/store";
 import { createUpdateStore, type SwContainer } from "./features/update/store";
 
@@ -92,6 +93,7 @@ const ctx: AppContext = {
   toast: createToastStore(),
   items: createItemStore(session),
   stock: createStockStore(),
+  shopping: createShoppingStore(session),
   today: () => localToday(),
   processAvatar: (file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO),
   processItemPhoto: (file) => processPhoto(file, browserPhotoDeps, ITEM_PHOTO),
