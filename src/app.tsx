@@ -1,15 +1,11 @@
-import { useEffect } from "preact/hooks";
+import { Fragment } from "preact";
 import { MemberWizard } from "./features/onboarding/member-wizard";
 import type { OnboardingStore } from "./features/onboarding/store";
-import type { Session } from "./features/session/session";
-import { PlacesPage } from "./features/settings/places-page";
-import { SettingsPage } from "./features/settings/settings-page";
-import type { SettingsStore } from "./features/settings/store";
-import type { Router, Screen, Tab } from "./features/shell/route";
+import type { Tab } from "./features/shell/route";
 import { TabBar } from "./features/shell/tab-bar";
 import { Avatar } from "./features/ui/avatar";
-import type { UpdateStore } from "./features/update/store";
 import { UpdateBanner } from "./features/update/update-banner";
+import { type AppContext, renderScreen } from "./screens";
 
 const TITLES: Record<Tab, string> = {
   home: "Início",
@@ -17,92 +13,8 @@ const TITLES: Record<Tab, string> = {
   shopping: "Compras",
 };
 
-/**
- * Tela que esta versao nao conhece (historico velho, link antigo): volta em
- * vez de prender o app numa tela em branco.
- */
-function UnknownScreen({ onBack }: { onBack: () => void }) {
-  useEffect(() => {
-    onBack();
-  }, [onBack]);
-  return null;
-}
-
-interface StackedProps {
-  screen: Screen;
-  router: Router;
-  session: Session;
-  settings: SettingsStore;
-  version: string | null;
-  processFile: (file: Blob) => Promise<string>;
-  onLeave: () => Promise<void>;
-}
-
-function StackedScreen({
-  screen,
-  router,
-  session,
-  settings,
-  version,
-  processFile,
-  onLeave,
-}: StackedProps) {
-  const me = session.localMember.value;
-  switch (screen.kind) {
-    case "settings":
-      return (
-        <SettingsPage
-          session={session}
-          store={settings}
-          version={version}
-          onBack={router.back}
-          onEditProfile={() => router.push({ kind: "profile" })}
-          onOpenPlaces={() => router.push({ kind: "places" })}
-          onLeave={onLeave}
-        />
-      );
-    case "places":
-      return <PlacesPage session={session} store={settings} onBack={router.back} />;
-    case "profile":
-      if (me === null) return <UnknownScreen onBack={router.back} />;
-      return (
-        <MemberWizard
-          mode="edit"
-          initial={{ name: me.name, color: me.color, photo: me.photo }}
-          onSubmit={async (draft) => {
-            const depth = router.stack.value.length;
-            await settings.saveProfile(draft);
-            // Voltar do sistema durante a gravacao ja desempilhou: outro back sairia da tela de baixo.
-            if (router.stack.value.length === depth && router.top.value?.kind === "profile") {
-              router.back();
-            }
-          }}
-          onCancel={router.back}
-          processFile={processFile}
-        />
-      );
-    default:
-      return <UnknownScreen onBack={router.back} />;
-  }
-}
-
-export function App({
-  router,
-  update,
-  session,
-  onboarding,
-  settings,
-  processFile,
-  onLeave,
-}: {
-  router: Router;
-  update: UpdateStore;
-  session: Session;
-  onboarding: OnboardingStore;
-  settings: SettingsStore;
-  processFile: (file: Blob) => Promise<string>;
-  onLeave: () => Promise<void>;
-}) {
+export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: OnboardingStore }) {
+  const { router, session, update } = ctx;
   const status = session.status.value;
 
   if (status === "loading") {
@@ -126,7 +38,11 @@ export function App({
     return (
       <div class="mx-auto min-h-dvh max-w-[480px]">
         {/* Sem UpdateBanner: ele e fixed acima da tab bar e cobriria o CTA do wizard. */}
-        <MemberWizard mode="create" onSubmit={onboarding.complete} processFile={processFile} />
+        <MemberWizard
+          mode="create"
+          onSubmit={onboarding.complete}
+          processFile={ctx.processAvatar}
+        />
       </div>
     );
   }
@@ -140,16 +56,7 @@ export function App({
       <div class="mx-auto min-h-dvh max-w-[480px]">
         {/* A chave pela profundidade remonta a tela a cada pop: duas desconhecidas
             seguidas reaproveitariam a instancia e o efeito de voltar nao rodaria. */}
-        <StackedScreen
-          key={router.stack.value.length}
-          screen={top}
-          router={router}
-          session={session}
-          settings={settings}
-          version={update.version}
-          processFile={processFile}
-          onLeave={onLeave}
-        />
+        <Fragment key={router.stack.value.length}>{renderScreen(top, ctx)}</Fragment>
         {banner}
       </div>
     );

@@ -14,6 +14,7 @@ import { scopeResetDeps } from "./features/settings/reset-scope";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import { createUpdateStore, type SwContainer } from "./features/update/store";
+import type { AppContext } from "./screens";
 
 const root = document.getElementById("app");
 if (!root) {
@@ -79,30 +80,27 @@ document.addEventListener("visibilitychange", () => {
   if (session.status.value === "ready") void session.reload().catch(() => {});
 });
 
-render(
-  <App
-    router={router}
-    update={update}
-    session={session}
-    onboarding={onboarding}
-    settings={settings}
-    processFile={(file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO)}
-    onLeave={() =>
-      resetDevice({
-        db,
-        // Mesma origem do HomeFinance: so o que e deste app (ver reset-scope.ts).
-        ...scopeResetDeps({
-          // Os dois helpers tem try/catch: em contexto sandbox so ler o getter lanca.
-          caches: cachesOrUndefined(),
-          serviceWorker: serviceWorkerContainer() as ResetDeps["serviceWorker"],
-          scope: new URL(import.meta.env.BASE_URL, window.location.href).href,
-        }),
-        // Desempilha o historico antes: as entradas sobrevivem a recarga.
-        reload: () => {
-          void router.unwind().then(() => window.location.reload());
-        },
-      })
-    }
-  />,
-  root,
-);
+const ctx: AppContext = {
+  router,
+  session,
+  update,
+  settings,
+  processAvatar: (file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO),
+  onLeave: () =>
+    resetDevice({
+      db,
+      // Mesma origem do HomeFinance: so o que e deste app (ver reset-scope.ts).
+      ...scopeResetDeps({
+        // Os dois helpers tem try/catch: em contexto sandbox so ler o getter lanca.
+        caches: cachesOrUndefined(),
+        serviceWorker: serviceWorkerContainer() as ResetDeps["serviceWorker"],
+        scope: new URL(import.meta.env.BASE_URL, window.location.href).href,
+      }),
+      // Desempilha o historico antes: as entradas sobrevivem a recarga.
+      reload: () => {
+        void router.unwind().then(() => window.location.reload());
+      },
+    }),
+};
+
+render(<App ctx={ctx} onboarding={onboarding} />, root);

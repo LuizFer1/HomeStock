@@ -1,36 +1,26 @@
 import "fake-indexeddb/auto";
-import { signal } from "@preact/signals";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
+import { fakeUpdate, testContext } from "./app-context.fake";
 import { openTestDb, seededRandom, testClock } from "./data/test-db.fake";
 import { createOnboardingStore } from "./features/onboarding/store";
 import { createSession, type Session } from "./features/session/session";
 import { ANA, openTestSession } from "./features/session/test-session.fake";
-import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
-import type { UpdateStore } from "./features/update/store";
 
 function setup(session: Session, ready = false) {
+  const { ctx, history } = testContext(session, { update: fakeUpdate(ready) });
+  render(<App ctx={ctx} onboarding={createOnboardingStore(session)} />);
+  return { router: ctx.router, history };
+}
+
+/** Historico que nao dispara popstate sozinho: o teste anda a pilha passo a passo. */
+function setupManualHistory(session: Session) {
   const history = { pushState: vi.fn(), back: vi.fn(), go: vi.fn() };
   const router = createRouter(history);
-  const update: UpdateStore = {
-    ready: signal(ready),
-    check: async () => "current",
-    apply: () => {},
-    version: null,
-  };
-  render(
-    <App
-      router={router}
-      update={update}
-      session={session}
-      onboarding={createOnboardingStore(session)}
-      settings={createSettingsStore(session, { download: vi.fn(), today: () => "2026-10-06" })}
-      onLeave={async () => {}}
-      processFile={async () => "data:image/webp;base64,AAA"}
-    />,
-  );
+  const { ctx } = testContext(session, { router });
+  render(<App ctx={ctx} onboarding={createOnboardingStore(session)} />);
   return { router, history };
 }
 
@@ -99,7 +89,7 @@ describe("App", () => {
 
   it("duas telas desconhecidas empilhadas voltam as duas", async () => {
     const { session } = await openTestSession({ member: ANA });
-    const { router, history } = setup(session);
+    const { router, history } = setupManualHistory(session);
     router.push({ kind: "nada" });
     router.push({ kind: "outra" });
     await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
@@ -144,10 +134,10 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
     await vi.waitFor(() => expect(session.localMember.value?.name).toBe("Ana Maria"));
-    // O historico do navegador e quem desempilha; aqui o popstate e simulado.
-    router.onPopState();
+    // O `back` do salvar ja desempilhou (o historico falso dispara o popstate).
     expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
     expect(screen.getAllByText("Ana Maria").length).toBeGreaterThan(0);
+    // Voltar do sistema, sem toque na tela.
     router.onPopState();
     expect(await screen.findByRole("button", { name: "Ajustes" })).toBeTruthy();
     expect(screen.getByRole("img", { name: "Ana Maria" })).toBeTruthy();
@@ -207,7 +197,6 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
     expect(history.back).toHaveBeenCalled();
-    router.onPopState();
     expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
   });
 });

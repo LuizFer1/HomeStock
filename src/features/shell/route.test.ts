@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRouter, type HistoryLike } from "./route";
+import { closeIfStill, createRouter, type HistoryLike } from "./route";
 
 function fakeHistory() {
   const entries: unknown[] = [];
@@ -91,5 +91,34 @@ describe("router", () => {
     router.push({ kind: "settings" });
     router.selectTab("shopping");
     expect(router.tab.value).toBe("home");
+  });
+});
+
+describe("closeIfStill", () => {
+  it("volta com a mesma profundidade e o mesmo kind no topo", () => {
+    const fake = fakeHistory();
+    const router = createRouter(fake.history);
+    router.push({ kind: "settings" });
+    router.push({ kind: "profile" });
+    closeIfStill(router, 2, "profile");
+    expect(fake.backs()).toBe(1);
+  });
+
+  it("nao volta se a profundidade mudou", () => {
+    const fake = fakeHistory();
+    const router = createRouter(fake.history);
+    router.push({ kind: "settings" });
+    router.push({ kind: "profile" });
+    closeIfStill(router, 3, "profile");
+    expect(fake.backs()).toBe(0);
+  });
+
+  it("nao volta com outro kind no topo", () => {
+    const fake = fakeHistory();
+    const router = createRouter(fake.history);
+    router.push({ kind: "settings" });
+    router.push({ kind: "places" });
+    closeIfStill(router, 2, "profile");
+    expect(fake.backs()).toBe(0);
   });
 });
