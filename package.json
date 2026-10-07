@@ -23,7 +23,8 @@
     "@preact/signals": "^2.11.3",
     "dexie": "^4.4.6",
     "lucide-preact": "^1.52.0",
-    "preact": "^10.29.8"
+    "preact": "^10.29.8",
+    "zxing-wasm": "^3.1.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

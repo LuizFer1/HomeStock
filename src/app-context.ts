@@ -1,4 +1,5 @@
 import type { ItemStore } from "./features/item/store";
+import type { ScannerEnv } from "./features/scanner/env";
 import type { Session } from "./features/session/session";
 import type { SettingsStore } from "./features/settings/store";
 import type { Router } from "./features/shell/route";
@@ -23,5 +24,7 @@ export interface AppContext {
   processAvatar: (file: Blob) => Promise<string>;
   /** Pipeline da foto de item (ITEM_PHOTO). */
   processItemPhoto: (file: Blob) => Promise<string>;
+  /** Camera e leitor de codigo; injetados para o teste nunca abrir camera de verdade. */
+  scanner: ScannerEnv;
   onLeave: () => Promise<void>;
 }

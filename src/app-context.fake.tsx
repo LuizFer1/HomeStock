@@ -2,6 +2,7 @@ import { signal } from "@preact/signals";
 import { type Mock, vi } from "vitest";
 import type { AppContext } from "./app-context";
 import { createItemStore } from "./features/item/store";
+import { noCameraEnv } from "./features/scanner/scanner.fake";
 import type { Session } from "./features/session/session";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
@@ -43,6 +44,7 @@ export function testContext(
     today: () => "2026-10-06",
     processAvatar: async () => "data:image/webp;base64,AAA",
     processItemPhoto: async () => "data:image/webp;base64,AAA",
+    scanner: noCameraEnv(),
     onLeave: async () => {},
     ...overrides,
   };

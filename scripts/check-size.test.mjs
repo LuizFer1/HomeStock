@@ -1,5 +1,14 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { isAppShellArtifact, isFontArtifact } from "./check-size.mjs";
+import {
+  isAppArtifact,
+  isAppShellArtifact,
+  isFontArtifact,
+  isScannerArtifact,
+  measureDist,
+} from "./check-size.mjs";
 
 describe("check-size", () => {
   it("mede JS e CSS do shell", () => {
@@ -17,5 +26,33 @@ describe("check-size", () => {
     expect(isFontArtifact("assets/figtree-latin-400-normal-x.woff2")).toBe(true);
     expect(isFontArtifact("assets/figtree-latin-400-normal-x.woff")).toBe(false);
     expect(isAppShellArtifact("assets/figtree-latin-400-normal-x.woff2")).toBe(false);
+  });
+
+  it("reconhece o chunk e o .wasm do leitor", () => {
+    expect(isScannerArtifact("assets/zxing-reader-AbC_1.js")).toBe(true);
+    expect(isScannerArtifact("assets/zxing_reader-AbC1.wasm")).toBe(true);
+    expect(isScannerArtifact("assets/index-AbC.js")).toBe(false);
+  });
+
+  it("o app nao mede o leitor; o leitor tem orcamento proprio", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "check-size-"));
+    try {
+      await mkdir(path.join(dir, "assets"));
+      await writeFile(path.join(dir, "assets", "index-AbC.js"), "console.log(1)");
+      await writeFile(path.join(dir, "assets", "zxing-reader-AbC_1.js"), "console.log(2)");
+      await writeFile(path.join(dir, "assets", "zxing_reader-AbC1.wasm"), "wasm");
+
+      const app = await measureDist(dir);
+      expect(app.files.map((f) => f.file)).toEqual([path.join("assets", "index-AbC.js")]);
+      expect(isAppArtifact("assets/zxing-reader-AbC_1.js")).toBe(false);
+
+      const scanner = await measureDist(dir, isScannerArtifact);
+      expect(scanner.files.map((f) => f.file).sort()).toEqual([
+        path.join("assets", "zxing-reader-AbC_1.js"),
+        path.join("assets", "zxing_reader-AbC1.wasm"),
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

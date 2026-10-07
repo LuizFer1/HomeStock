@@ -27,6 +27,20 @@ export const MANIFEST_ICONS = [
   },
 ];
 
+/**
+ * O leitor zxing (~430kb gzip) fica fora do precache: o Chrome Android tem leitor
+ * nativo e nao precisa dele. Entra no cache no primeiro uso e dai em diante
+ * funciona offline. Os nomes casam com isScannerArtifact (scripts/check-size.mjs).
+ */
+export const SCANNER_GLOB_IGNORES = ["**/zxing-reader-*.js", "**/zxing_reader-*.wasm"];
+export const SCANNER_CACHE = {
+  urlPattern: /\/assets\/zxing[-_]reader-[^/]*\.(?:js|wasm)$/,
+  // Nome com hash: o arquivo nunca muda, entao rede de novo e desperdicio.
+  handler: "CacheFirst" as const,
+  // `homestock` no nome: o "Sair da casa" apaga por prefixo (reset-scope.ts).
+  options: { cacheName: "homestock-scanner", expiration: { maxEntries: 4 } },
+};
+
 export default defineConfig({
   base: BASE,
   // Sem numero de versao: cada push na main e um build novo, e a data dele e a versao.
@@ -64,6 +78,8 @@ export default defineConfig({
         clientsClaim: true,
         navigateFallback: `${BASE}index.html`,
         globPatterns: ["**/*.{js,css,html,png,svg,ico,webp,woff2}"],
+        globIgnores: SCANNER_GLOB_IGNORES,
+        runtimeCaching: [SCANNER_CACHE],
       },
       // Em dev o SW atrapalha o HMR; so entra no build de producao.
       devOptions: { enabled: false },

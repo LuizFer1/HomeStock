@@ -20,11 +20,12 @@ import { gzipSync } from "node:zlib";
  *   75kb  — fatia 3, Estoque: lista com busca, filtros, cards com long-press,
  *           action sheet e toast com desfazer (65.10kb medidos: 59.43kb JS +
  *           5.67kb CSS). Detalhe e formulario de item entraram depois, sem elevar
- *           o teto: medida final da fatia 3 em 69.17kb (63.25kb JS + 5.91kb CSS),
- *           5.83kb de folga.
+ *           o teto: medida final da fatia 3 em 69.38kb (63.46kb JS + 5.91kb CSS),
+ *           5.62kb de folga.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
- * instalabilidade, nao do first paint. Ver isAppShellArtifact.
+ * instalabilidade, nao do first paint. Ver isAppShellArtifact. O leitor zxing
+ * tem orcamento proprio, SCANNER_LIMIT_BYTES.
  */
 export const LIMIT_BYTES = 75 * 1024;
 
@@ -35,6 +36,16 @@ export const LIMIT_BYTES = 75 * 1024;
  *   80kb  — Caprasimo 400 e Figtree 400/600/700, subset latin.
  */
 export const FONT_LIMIT_BYTES = 80 * 1024;
+
+/**
+ * Teto do leitor de codigo de barras (zxing-wasm), baixado por `import()` so
+ * onde nao ha BarcodeDetector nativo e fora do precache. Historico:
+ *   500kb — fatia 4: zxing-wasm 3.1.5, chunk `zxing-reader-*.js` mais
+ *           `zxing_reader-*.wasm` (420.84kb medidos, gzip). Folga larga de
+ *           proposito: so segura o acidente de o chunk arrastar o shell ou de
+ *           o build deixar de separar o .wasm.
+ */
+export const SCANNER_LIMIT_BYTES = 500 * 1024;
 
 const MEASURED = /\.(js|css)$/;
 
@@ -52,6 +63,25 @@ export function isAppShellArtifact(relativePath) {
   return MEASURED.test(base);
 }
 
+/**
+ * Artefatos do leitor: o chunk do `import()` e o .wasm. O prefixo vem dos nomes
+ * de `src/features/scanner/zxing-reader.ts` e do arquivo do pacote; renomear
+ * la sem mudar aqui joga o leitor de volta no teto do app.
+ * @param {string} relativePath
+ */
+export function isScannerArtifact(relativePath) {
+  const base = path.basename(relativePath).toLowerCase();
+  return base.startsWith("zxing") && /\.(js|wasm)$/.test(base);
+}
+
+/**
+ * O que conta no teto do app: o shell sem o leitor sob demanda.
+ * @param {string} relativePath
+ */
+export function isAppArtifact(relativePath) {
+  return isAppShellArtifact(relativePath) && !isScannerArtifact(relativePath);
+}
+
 /** @param {string} relativePath */
 export function isFontArtifact(relativePath) {
   return relativePath.toLowerCase().endsWith(".woff2");
@@ -63,7 +93,7 @@ export function isFontArtifact(relativePath) {
  * @param {boolean} gzip
  * @returns {Promise<{ total: number, files: Array<{ file: string, size: number }> }>}
  */
-export async function measureDist(dir, include = isAppShellArtifact, gzip = true) {
+export async function measureDist(dir, include = isAppArtifact, gzip = true) {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true });
   const files = [];
   let total = 0;
@@ -119,8 +149,14 @@ async function main() {
     FONT_LIMIT_BYTES,
     "FONT_LIMIT_BYTES",
   );
+  const scanner = report(
+    "leitor (gzip)",
+    await measureDist(dir, isScannerArtifact),
+    SCANNER_LIMIT_BYTES,
+    "SCANNER_LIMIT_BYTES",
+  );
   // Os relatorios saem todos antes de falhar: estourar um nao esconde o outro.
-  if (!app || !fonts) process.exit(1);
+  if (!app || !fonts || !scanner) process.exit(1);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
