@@ -1,5 +1,5 @@
 import type { ComponentChildren, JSX } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useRef, useState } from "preact/hooks";
 import { describeError } from "../session/session";
 import { Button } from "../ui/button";
 import { TextField } from "../ui/text-field";
@@ -70,6 +70,7 @@ export function InlineTextRow({
   maxLength: number;
   onSave: (value: string) => Promise<void>;
 }) {
+  const inputId = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +110,8 @@ export function InlineTextRow({
       setEditing(false);
     } catch (cause) {
       setError(describeError(cause));
+      // O botao Salvar estava com o foco e ficou desabilitado durante a gravacao.
+      field.current?.querySelector("input")?.focus();
     } finally {
       saving.current = false;
       setBusy(false);
@@ -138,9 +141,12 @@ export function InlineTextRow({
 
   return (
     <div class="flex flex-col gap-2 py-2">
-      <span class="text-[14px] font-semibold">{label}</span>
+      <label for={inputId} class="text-[14px] font-semibold">
+        {label}
+      </label>
       <div ref={field} class="flex items-center gap-2">
         <TextField
+          id={inputId}
           label={label}
           value={draft}
           maxLength={maxLength}
@@ -148,7 +154,12 @@ export function InlineTextRow({
           onInput={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={onKeyDown}
         />
-        <Button class="min-h-12" disabled={busy} onClick={() => void save()}>
+        <Button
+          class="min-h-12"
+          aria-label={`Salvar ${label}`}
+          disabled={busy}
+          onClick={() => void save()}
+        >
           Salvar
         </Button>
       </div>

@@ -147,5 +147,36 @@ describe("App", () => {
     router.onPopState();
     expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
     expect(screen.getAllByText("Ana Maria").length).toBeGreaterThan(0);
+    router.onPopState();
+    expect(await screen.findByRole("button", { name: "Ajustes" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Ana Maria" })).toBeTruthy();
+  });
+
+  it("voltar do sistema durante o salvar nao desempilha duas vezes", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { router, history } = setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+    await screen.findByLabelText("Seu nome");
+    // Segura a gravacao ate o teste liberar.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const realRun = session.run;
+    session.run = (async (command) => {
+      await gate;
+      return realRun(command);
+    }) as typeof session.run;
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    router.onPopState();
+    expect(router.stack.value.map((s) => s.kind)).toEqual(["settings"]);
+    release();
+    await vi.waitFor(() => expect(session.localMember.value?.name).toBe("Ana"));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(history.back).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Ajustes" })).toBeTruthy();
   });
 });

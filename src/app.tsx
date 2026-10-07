@@ -57,8 +57,12 @@ function StackedScreen({ screen, router, session, settings, version, processFile
           mode="edit"
           initial={{ name: me.name, color: me.color, photo: me.photo }}
           onSubmit={async (draft) => {
+            const depth = router.stack.value.length;
             await settings.saveProfile(draft);
-            router.back();
+            // Voltar do sistema durante a gravacao ja desempilhou: outro back sairia da tela de baixo.
+            if (router.stack.value.length === depth && router.top.value?.kind === "profile") {
+              router.back();
+            }
           }}
           onCancel={router.back}
           processFile={processFile}

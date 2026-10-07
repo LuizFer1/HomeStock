@@ -52,9 +52,29 @@ describe("SettingsPage", () => {
     const { store } = await setup();
     vi.spyOn(store, "setPref").mockRejectedValue(new Error("disco cheio"));
     fireEvent.click(screen.getByRole("button", { name: /Nome da casa/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Salvar/ }));
     expect((await screen.findByRole("alert")).textContent).toContain("disco cheio");
     expect(screen.getByLabelText("Nome da casa")).toBeTruthy();
+  });
+
+  it("falha ao gravar um switch mostra o alerta na pagina", async () => {
+    const { store } = await setup();
+    vi.spyOn(store, "setPref").mockRejectedValueOnce(new Error("sem espaco"));
+    fireEvent.click(screen.getByRole("switch", { name: "Atividade da casa" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("sem espaco");
+  });
+
+  it("o chip ativo usa aria-pressed", async () => {
+    await setup();
+    fireEvent.click(screen.getByRole("button", { name: "5 dias" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "5 dias" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      ),
+    );
+    expect(screen.getByRole("button", { name: "3 dias" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
   });
 
   it("Categorias e locais mostra a contagem e abre a tela", async () => {
@@ -93,7 +113,7 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Nenhum")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Mercado preferido/ }));
     fireEvent.input(screen.getByLabelText("Mercado preferido"), { target: { value: "Mercadão" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Salvar/ }));
     expect(await screen.findByText("Mercadão")).toBeTruthy();
     expect(session.prefs.value.preferredStore).toBe("Mercadão");
   });
