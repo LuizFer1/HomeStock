@@ -1,4 +1,5 @@
 import type { Table } from "dexie";
+import { compareHlc } from "../domain/clock/hlc";
 import { createRowClock, type RowClock, type Stamp } from "../domain/clock/row-clock";
 import { seedCategories, seedLocations } from "../domain/defaults/seeds";
 import type { RandomChunk, Ulid } from "../domain/ids/ulid";
@@ -246,10 +247,21 @@ export async function openRepository(deps: RepositoryDeps) {
     });
   }
 
+  /**
+   * Marca viva mais velha que o ultimo restock vivo do item: mesma regra do `liveMarkOf`.
+   * A projecao a ignora; gravar em cima dela traria de volta marcado, quantidade e preco da ida anterior.
+   */
+  async function markIsOlderThanRestock(mark: ListMark): Promise<boolean> {
+    const moves = await db.movements.where("itemId").equals(mark.itemId).toArray();
+    return moves.some(
+      (m) => isAlive(m) && m.reason === "restock" && compareHlc(mark.updatedAt, m.updatedAt) < 0,
+    );
+  }
+
   /** Linha da marca pronta para o patch: viva como esta, ou revivida com os padroes. */
   async function markBase(itemId: Ulid, s: Stamp): Promise<ListMark> {
     const row = await db.listMarks.get(listMarkId(itemId));
-    if (isAlive(row)) return row;
+    if (isAlive(row) && !(await markIsOlderThanRestock(row))) return row;
     // A linha de id estavel e reaproveitada; o que ela guardava da ida anterior ao mercado nao vale mais.
     return {
       ...(row ?? fresh(s)),
@@ -269,7 +281,7 @@ export async function openRepository(deps: RepositoryDeps) {
     itemId: Ulid,
     patchOf: (base: ListMark) => ListMarkPatch,
   ): Promise<ListMark> {
-    return db.transaction("rw", db.items, db.listMarks, db.meta, async () => {
+    return db.transaction("rw", db.items, db.movements, db.listMarks, db.meta, async () => {
       await aliveItem(itemId);
       const s = await stamp();
       const base = await markBase(itemId, s);
@@ -416,6 +428,8 @@ export async function openRepository(deps: RepositoryDeps) {
       movement: Movement;
       price: Price | null;
       expiry: { before: string | null; after: string | null };
+      /** Marca que este restock apagou; o desfazer a devolve. */
+      clearedMarkId: Ulid | null;
     }> {
       assertCount(qty, "Reposicao");
       if (unitPriceMinor !== undefined) assertPrice(unitPriceMinor);
@@ -428,7 +442,7 @@ export async function openRepository(deps: RepositoryDeps) {
         const s = await stamp();
         const movement = await addMovement(id, qty, "restock", s);
         // Compra registrada por qualquer caminho encerra a ida ao mercado deste item.
-        await clearMark(id, s);
+        const cleared = await clearMark(id, s);
         // A linha inteira e regravada (LWW por linha): edicao concorrente de outro
         // aparelho pode perder. So acontece quando a validade muda.
         if (after !== item.expiresAt) {
@@ -439,7 +453,12 @@ export async function openRepository(deps: RepositoryDeps) {
           unitPriceMinor === undefined
             ? null
             : await addPrice(id, movement, unitPriceMinor, qty, s);
-        return { movement, price, expiry: { before: item.expiresAt, after } };
+        return {
+          movement,
+          price,
+          expiry: { before: item.expiresAt, after },
+          clearedMarkId: cleared?.id ?? null,
+        };
       });
     },
 
@@ -463,6 +482,7 @@ export async function openRepository(deps: RepositoryDeps) {
     async undoMovement(
       movementId: Ulid,
       expiry?: { before: string | null; after: string | null },
+      clearedMarkId: Ulid | null = null,
     ): Promise<void> {
       const tables = [db.items, db.movements, db.prices, db.listMarks, db.meta];
       await db.transaction("rw", tables, async () => {
@@ -471,6 +491,14 @@ export async function openRepository(deps: RepositoryDeps) {
         const s = await stamp();
         const movement = await undoMovementRows(movementId, s);
         if (movement === null) return;
+        // O restock apagou a marca; sem ela, fixar e anotar se perderiam num toque enganado.
+        // Marca ja refeita (viva) fica como esta; a revivida passa pelo clearStaleMark abaixo.
+        if (clearedMarkId !== null) {
+          const mark = await db.listMarks.get(clearedMarkId);
+          if (mark !== undefined && mark.deletedAt !== null && mark.itemId === movement.itemId) {
+            await db.listMarks.put(touched(mark, s, { deletedAt: null }));
+          }
+        }
         if (expiry !== undefined && expiry.before !== expiry.after) {
           const item = await db.items.get(movement.itemId);
           // Validade mudada depois por outra pessoa ou tela fica: o desfazer so devolve o que esta reposicao trocou.

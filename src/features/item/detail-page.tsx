@@ -197,7 +197,7 @@ export function ItemDetailPage({ ctx, id }: ItemDetailPageProps): JSX.Element | 
       toast.show(direction < 0 ? `Usou 1 ${unit}` : `Guardou 1 ${unit}`, {
         label: "Desfazer",
         run: async () => {
-          await items.undo(movement.id);
+          await items.undo(movement.id, movement.clearedMarkId);
           // O botao do toast some ao fechar; o foco volta ao titulo, se a
           // pessoa ainda esta no Detalhe e nao foi para outro lugar.
           nextFrame(() => {

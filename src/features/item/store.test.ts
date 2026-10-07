@@ -220,6 +220,25 @@ describe("preco e reposicao do scanner", () => {
     expect(session.data.value.prices).toHaveLength(0);
   });
 
+  it("undoRestock do scanner devolve a marca fixada que a reposicao apagou", async () => {
+    const { session, store } = await setup();
+    const item = await store.create(cafe(), 5);
+    await session.run((repo) => repo.markItem(item.id, { pinned: 1 }));
+    const receipt = await store.restockScan(item.id, 1, null, null);
+    expect(session.data.value.listMarks.every((m) => m.deletedAt !== null)).toBe(true);
+    await store.undoRestock(receipt);
+    expect(session.data.value.listMarks.filter((m) => m.deletedAt === null)[0]?.pinned).toBe(1);
+  });
+
+  it("undo do + do stepper devolve a marca fixada", async () => {
+    const { session, store } = await setup();
+    const item = await store.create(cafe(), 5);
+    await session.run((repo) => repo.markItem(item.id, { pinned: 1 }));
+    const added = await store.step(item.id, 1);
+    await store.undo(added.id, added.clearedMarkId);
+    expect(session.data.value.listMarks.filter((m) => m.deletedAt === null)[0]?.pinned).toBe(1);
+  });
+
   it("restockScan grava restock com preco e undoRestock devolve tudo", async () => {
     const { session, store } = await setup();
     const item = await store.create(cafe({ expiresAt: "2026-12-01" }), 0);

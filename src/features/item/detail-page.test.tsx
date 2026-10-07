@@ -11,7 +11,7 @@ import type { Session } from "../session/session";
 import { ANA, openTestSession } from "../session/test-session.fake";
 import { ToastView } from "../shell/toast-view";
 import { ItemDetailPage } from "./detail-page";
-import { createItemStore } from "./store";
+import { createItemStore, type StepResult } from "./store";
 
 afterEach(() => {
   cleanup();
@@ -214,7 +214,7 @@ describe("ItemDetailPage", () => {
 
   it("so a falha do ultimo toque aparece", async () => {
     let rejectFirst: (cause: Error) => void = () => {};
-    let resolveSecond: (m: Movement) => void = () => {};
+    let resolveSecond: (m: StepResult) => void = () => {};
     const { item } = await setup({
       overrides: (session) => {
         const real = createItemStore(session);
@@ -225,10 +225,10 @@ describe("ItemDetailPage", () => {
             step: () => {
               calls += 1;
               return calls === 1
-                ? new Promise<Movement>((_, reject) => {
+                ? new Promise<StepResult>((_, reject) => {
                     rejectFirst = reject;
                   })
-                : new Promise<Movement>((resolve) => {
+                : new Promise<StepResult>((resolve) => {
                     resolveSecond = resolve;
                   });
             },
@@ -239,7 +239,13 @@ describe("ItemDetailPage", () => {
     fireEvent.click(addButton());
     fireEvent.click(addButton());
     // Fora de ordem de proposito: a falha velha chega depois do sucesso novo.
-    resolveSecond({ id: "m2", itemId: item.id, delta: 1, reason: "restock" } as Movement);
+    resolveSecond({
+      id: "m2",
+      itemId: item.id,
+      delta: 1,
+      reason: "restock",
+      clearedMarkId: null,
+    } as StepResult);
     await waitFor(() => expect(screen.getByText("Guardou 1 pct")).toBeTruthy());
     rejectFirst(new Error("Velho."));
     await waitFor(() => expect(stepper().getByText("2")).toBeTruthy());
@@ -377,6 +383,15 @@ describe("ItemDetailPage", () => {
       const all = session.data.value.listMarks.filter((m) => m.itemId === item.id);
       expect(all).toHaveLength(1);
       expect(all[0]?.pinned).toBe(1);
+    });
+
+    it("o Desfazer do + devolve o item fixado a lista", async () => {
+      const { session, item } = await setup({ qty: 5, prepare: pinFirst });
+      fireEvent.click(addButton());
+      await screen.findByRole("button", { name: ADD });
+      fireEvent.click(await screen.findByRole("button", { name: "Desfazer" }));
+      await screen.findByRole("button", { name: REMOVE });
+      expect(marks(session, item.id)[0]?.pinned).toBe(1);
     });
 
     it("o + do stepper tira o item fixado da lista", async () => {

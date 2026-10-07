@@ -8,7 +8,12 @@ export interface RestockReceipt {
   movementId: Ulid;
   /** Validade antes e depois da reposicao; iguais quando nada mudou. */
   expiry: { before: string | null; after: string | null };
+  /** Marca da lista que o restock apagou; o desfazer a devolve. */
+  clearedMarkId: Ulid | null;
 }
+
+/** Movimento do stepper e, no +, a marca da lista que ele apagou. */
+export type StepResult = Movement & { clearedMarkId: Ulid | null };
 
 /** Comandos de item para as telas: formulario, apagar, devolver e o stepper do Detalhe. */
 export interface ItemStore {
@@ -20,9 +25,9 @@ export interface ItemStore {
   /** Movimentos ficam intactos ao apagar: devolve com a mesma quantidade. */
   restore: (id: Ulid) => Promise<void>;
   /** Fila serial: -1 grava useItem(id, 1), +1 grava restock(id, 1) sem preco. */
-  step: (id: Ulid, direction: 1 | -1) => Promise<Movement>;
+  step: (id: Ulid, direction: 1 | -1) => Promise<StepResult>;
   /** Desfaz um toque do stepper apagando o movimento (e o preco, se houver). */
-  undo: (movementId: Ulid) => Promise<void>;
+  undo: (movementId: Ulid, clearedMarkId?: Ulid | null) => Promise<void>;
   /** Reposicao do scanner: restock com preco e validade opcionais, numa transacao. */
   restockScan: (
     id: Ulid,
@@ -81,25 +86,29 @@ export function createItemStore(session: Session): ItemStore {
     step(id, direction) {
       const next = queue.then(() =>
         session.run((repo) =>
-          direction < 0 ? repo.useItem(id, 1) : repo.restock(id, 1).then((r) => r.movement),
+          direction < 0
+            ? repo.useItem(id, 1).then((movement) => ({ ...movement, clearedMarkId: null }))
+            : repo.restock(id, 1).then((r) => ({ ...r.movement, clearedMarkId: r.clearedMarkId })),
         ),
       );
       // A falha volta para quem tocou; a fila segue para o proximo toque.
       queue = next.catch(() => {});
       return next;
     },
-    async undo(movementId) {
-      await session.run((repo) => repo.undoMovement(movementId));
+    async undo(movementId, clearedMarkId = null) {
+      await session.run((repo) => repo.undoMovement(movementId, undefined, clearedMarkId));
     },
     // Fora da fila do step: a reposicao e um toque so, com trava na tela.
     async restockScan(id, qty, unitPriceMinor, expiresAt) {
       const r = await session.run((repo) =>
         repo.restock(id, qty, unitPriceMinor ?? undefined, expiresAt),
       );
-      return { movementId: r.movement.id, expiry: r.expiry };
+      return { movementId: r.movement.id, expiry: r.expiry, clearedMarkId: r.clearedMarkId };
     },
     async undoRestock(receipt) {
-      await session.run((repo) => repo.undoMovement(receipt.movementId, receipt.expiry));
+      await session.run((repo) =>
+        repo.undoMovement(receipt.movementId, receipt.expiry, receipt.clearedMarkId),
+      );
     },
   };
 }

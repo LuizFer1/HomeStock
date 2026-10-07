@@ -479,6 +479,57 @@ describe("marca da lista", () => {
     expect((await db.listMarks.get(listMarkId(item.id)))?.deletedAt).toBe(movement.updatedAt);
   });
 
+  it("restock devolve o id da marca que apagou e o undoMovement a revive fixada", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 5);
+    await repo.markItem(item.id, { pinned: 1, qty: 4 });
+    const { movement, clearedMarkId } = await repo.restock(item.id, 1);
+    expect(clearedMarkId).toBe(listMarkId(item.id));
+    await repo.undoMovement(movement.id, undefined, clearedMarkId);
+    expect(await db.listMarks.get(listMarkId(item.id))).toMatchObject({
+      deletedAt: null,
+      pinned: 1,
+      qty: 4,
+    });
+  });
+
+  it("restock sem marca devolve clearedMarkId null", async () => {
+    const { repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 5);
+    expect((await repo.restock(item.id, 1)).clearedMarkId).toBeNull();
+  });
+
+  it("undoMovement nao revive marca que ja foi refeita nem a que saiu da lista", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { checked: 1 });
+    const { movement, clearedMarkId } = await repo.restock(item.id, 1);
+    // Refeita por outra escrita: a viva fica como esta.
+    await repo.markItem(item.id, { pinned: 1 });
+    await repo.undoMovement(movement.id, undefined, clearedMarkId);
+    expect((await db.listMarks.get(listMarkId(item.id)))?.checked).toBe(0);
+    // Marca nao fixada revivida num item fora da lista e limpa de novo.
+    const other = await repo.createItem(cafe({ name: "Arroz", ean: null }), 5);
+    await repo.markItem(other.id, { checked: 1 });
+    const again = await repo.restock(other.id, 1);
+    await repo.restock(other.id, 1);
+    await repo.undoMovement(again.movement.id, undefined, again.clearedMarkId);
+    expect((await db.listMarks.get(listMarkId(other.id)))?.deletedAt).not.toBeNull();
+  });
+
+  it("markItem trata a marca viva mais velha que o ultimo repor como apagada", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { checked: 1, qty: 5, priceMinor: 990 });
+    await repo.restock(item.id, 1);
+    // Sync de aparelho offline: a linha velha volta viva depois do repor.
+    const dead = await db.listMarks.get(listMarkId(item.id));
+    if (dead === undefined) throw new Error("sem marca");
+    await db.listMarks.put({ ...dead, deletedAt: null, updatedAt: SEED_HLC });
+    const next = await repo.markItem(item.id, { pinned: 1 });
+    expect(next).toMatchObject({ pinned: 1, checked: 0, qty: null, priceMinor: null });
+  });
+
   it("restock sem marca nao grava em listMarks", async () => {
     const { db, repo } = await openTestRepository();
     const item = await repo.createItem(cafe(), 1);
