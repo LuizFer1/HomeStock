@@ -30,6 +30,15 @@ describe("normalizeAlertKey", () => {
       expect(() => normalizeAlertKey(key)).toThrow(/Chave de alerta invalida/);
     }
   });
+
+  it("o limite e exato: MAX_ALERT_KEY cabe, um a mais nao", () => {
+    const fits = `act:${"a".repeat(MAX_ALERT_KEY - 4)}`;
+    expect(fits).toHaveLength(MAX_ALERT_KEY);
+    expect(normalizeAlertKey(fits)).toBe(fits);
+    expect(() => normalizeAlertKey(`act:${"a".repeat(MAX_ALERT_KEY - 3)}`)).toThrow(
+      /Chave de alerta invalida/,
+    );
+  });
 });
 
 describe("resolvedKeys", () => {

@@ -730,6 +730,7 @@ export async function openRepository(deps: RepositoryDeps) {
     /**
      * Resolve as chaves numa transacao e um carimbo. Linha viva fica como esta
      * (resolver duas vezes nao gera escrita nem HLC novo); apagada revive; ausente nasce.
+     * O retorno e o conjunto de desfazer: so as chaves que ESTA chamada gravou.
      */
     async resolveAlerts(keys: readonly string[]): Promise<AlertState[]> {
       // Valida antes de abrir a transacao: chave ruim rejeita sem gravar nada.

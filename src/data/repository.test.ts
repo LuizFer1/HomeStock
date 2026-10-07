@@ -872,10 +872,20 @@ describe("alertas resolvidos", () => {
 
   it("varias chaves levam o mesmo carimbo e repetidas valem uma", async () => {
     const { db, repo } = await openTestRepository();
-    await repo.resolveAlerts(["act:A", "act:B", "act:A"]);
+    const returned = await repo.resolveAlerts(["act:A", "act:B", "act:A"]);
+    expect(returned.map((r) => r.key).sort()).toEqual(["act:A", "act:B"]);
     const rows = await db.alertStates.toArray();
     expect(rows).toHaveLength(2);
     expect(rows[0]?.updatedAt).toBe(rows[1]?.updatedAt);
+  });
+
+  it("lote misto grava e devolve so a chave ausente", async () => {
+    const { db, repo } = await openTestRepository();
+    const [alive] = await repo.resolveAlerts(["act:A"]);
+    const written = await repo.resolveAlerts(["act:A", "act:B"]);
+    expect(written.map((r) => r.key)).toEqual(["act:B"]);
+    expect((await db.alertStates.get(alertStateId("act:A")))?.updatedAt).toBe(alive?.updatedAt);
+    expect(await db.alertStates.count()).toBe(2);
   });
 
   it("chave invalida rejeita sem gravar as outras; lista vazia nao faz nada", async () => {

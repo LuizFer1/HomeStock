@@ -156,10 +156,39 @@ describe("convergencia entre dois aparelhos", () => {
     await send(a.db, b.db, b.repo);
     for (const { db } of [a, b]) expect(await db.alertStates.count()).toBe(1);
 
+    // Mesma linha nos dois: vence o HLC maior (o de B, que resolveu depois).
+    const [rowA] = await a.db.alertStates.toArray();
+    const [rowB] = await b.db.alertStates.toArray();
+    expect(rowA).toBeDefined();
+    expect(rowA?.updatedAt).toBe(rowB?.updatedAt);
+    expect(rowA?.authorId).toBe(rowB?.authorId);
+    expect(rowA?.deletedAt).toBe(rowB?.deletedAt);
+
     await a.repo.reopenAlerts(["low:X:start"]);
     await send(a.db, b.db, b.repo);
     const rows = await b.db.alertStates.toArray();
     expect(rows).toHaveLength(1);
     expect(rows[0]?.deletedAt).not.toBeNull();
+  });
+
+  it("A reabre e B, sem ter sincronizado, resolve: nada a gravar; depois ambos fechados", async () => {
+    const now = testClock();
+    const a = await device(1, now);
+    const b = await device(2, now);
+
+    await a.repo.resolveAlerts(["act:R"]);
+    await send(a.db, b.db, b.repo);
+    await a.repo.reopenAlerts(["act:R"]);
+
+    // B ainda ve a linha viva: resolver de novo e no-op.
+    expect(await b.repo.resolveAlerts(["act:R"])).toEqual([]);
+
+    await send(a.db, b.db, b.repo);
+    await send(b.db, a.db, a.repo);
+    for (const { db } of [a, b]) {
+      const rows = await db.alertStates.toArray();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.deletedAt).not.toBeNull();
+    }
   });
 });
