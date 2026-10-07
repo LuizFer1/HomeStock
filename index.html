@@ -328,6 +328,41 @@
         <button type="button" class="btn btn-primary" data-dialog-close>Entendi</button>
       </div>
     </dialog>
-    <!-- secao:dialogos -->
+    <dialog id="cafe-dialogo" class="dialog-shell" aria-labelledby="cafe-titulo-dialogo">
+      <div class="dialog">
+        <button type="button" class="btn btn-secondary btn-icon dialog-close" data-dialog-close aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+        <div class="coffee-view" data-coffee-view="ask">
+          <span class="cup cup-lg" aria-hidden="true">
+            <span class="steam"><span data-float="3,1.8,0"></span><span data-float="3,1.8,1.4"></span><span data-float="3,1.8,2.8"></span></span>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 2v2" /><path d="M14 2v2" /><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1" /><path d="M6 2v2" /></svg>
+          </span>
+          <h2 id="cafe-titulo-dialogo" class="dialog-title">Pague um café para o HomeStock</h2>
+          <p class="dialog-body">Cada café ajuda a manter o app gratuito e sem anúncios.</p>
+          <fieldset class="amounts">
+            <legend class="sr-only">Valor do café</legend>
+            <label class="amount"><input class="sr-only" type="radio" name="cafe-valor" value="5" checked /><span class="amount-price">R$ 5</span><span class="amount-label">1 café</span></label>
+            <label class="amount"><input class="sr-only" type="radio" name="cafe-valor" value="10" /><span class="amount-price">R$ 10</span><span class="amount-label">2 cafés</span></label>
+            <label class="amount"><input class="sr-only" type="radio" name="cafe-valor" value="20" /><span class="amount-price">R$ 20</span><span class="amount-label">4 cafés</span></label>
+          </fieldset>
+          <div class="pix-qr" data-coffee-qr>
+            <div class="pix-qr-plate"><img data-coffee-qr-img width="116" height="116" alt="QR code Pix de R$ 5,00" /></div>
+            <div class="pix-qr-copy">
+              <span class="tag tag-accent-2" data-coffee-price>Pix · R$ 5,00</span>
+              <span class="pix-qr-title">Aponte a câmera do celular</span>
+              <span class="pix-qr-text">Abra o app do seu banco, escolha Pix e leia o código. O valor já vem preenchido.</span>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary pix-copy" data-coffee-copy><span class="pix-copy-key">Pix · <span data-coffee-key>cafe@homestock.app</span></span><span class="pix-copy-pill" data-coffee-copy-label>Copiar</span></button>
+          <button type="button" class="btn btn-primary btn-block pix-donate" data-coffee-donate>Doar R$ 5,00</button>
+        </div>
+        <div class="coffee-view coffee-thanks" data-coffee-view="thanks" hidden>
+          <span class="thanks-check" aria-hidden="true"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5" /></svg></span>
+          <h2 id="cafe-obrigado" class="dialog-title thanks-title" tabindex="-1" data-coffee-thanks-title>Valeu pelo café!</h2>
+          <p class="dialog-body" data-coffee-thanks-text>Seu café mantém o HomeStock grátis para todas as casas.</p>
+          <button type="button" class="btn btn-secondary thanks-back" data-dialog-close>Voltar ao site</button>
+        </div>
+        <p class="sr-only" aria-live="polite" data-coffee-live></p>
+      </div>
+    </dialog>
   </body>
 </html>

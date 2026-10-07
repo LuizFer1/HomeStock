@@ -298,3 +298,26 @@ describe("dialogo de instalacao", () => {
     expect(link?.getAttribute("href")).toBe("app/");
   });
 });
+
+describe("dialogo do cafe", () => {
+  const doc = loadLanding();
+  const dialog = doc.querySelector("dialog#cafe-dialogo");
+
+  it("tem nome acessivel valido", () => {
+    const id = dialog?.getAttribute("aria-labelledby");
+    expect(id).toBeTruthy();
+    expect(id && doc.getElementById(id)).not.toBeNull();
+  });
+
+  it("tres radios de valor, o de 5 marcado", () => {
+    const radios = [...(dialog?.querySelectorAll('input[type="radio"][name="cafe-valor"]') ?? [])];
+    expect(radios.map((r) => r.getAttribute("value"))).toEqual(["5", "10", "20"]);
+    expect(radios.map((r) => r.hasAttribute("checked"))).toEqual([true, false, false]);
+    expect(textOf(dialog?.querySelector("fieldset > legend.sr-only"))).toBe("Valor do café");
+  });
+
+  it("botao Fechar e regiao viva", () => {
+    expect(dialog?.querySelector("button[data-dialog-close][aria-label='Fechar']")).not.toBeNull();
+    expect(dialog?.querySelector('.sr-only[aria-live="polite"]')).not.toBeNull();
+  });
+});
