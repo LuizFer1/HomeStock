@@ -58,4 +58,14 @@ describe("ExtraField", () => {
     fireEvent.click(add);
     await waitFor(() => expect(names()).toEqual(["Banana"]));
   });
+
+  it("o mesmo erro duas vezes e anunciado de novo", async () => {
+    await setup();
+    const add = screen.getByRole("button", { name: "Adicionar pedido" });
+    fireEvent.click(add);
+    const first = await screen.findByRole("alert");
+    fireEvent.click(add);
+    // O erro some no inicio do envio e volta: o leitor de tela o le outra vez.
+    await waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
+  });
 });

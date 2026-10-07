@@ -18,10 +18,18 @@ export interface AdjustSheetProps {
   onClose: () => void;
   /** A linha saiu da lista por um botao daqui: o pai fecha e foca o H1. */
   onGone: () => void;
+  /** O Desfazer do toast devolveu a linha: o pai foca o titulo (o botao do toast some). */
+  onUndone: () => void;
 }
 
 /** Conteudo do sheet "Ajustar" (markup 2e nao desenha; valores da spec). */
-export function AdjustSheet({ ctx, entry, onClose, onGone }: AdjustSheetProps): JSX.Element {
+export function AdjustSheet({
+  ctx,
+  entry,
+  onClose,
+  onGone,
+  onUndone,
+}: AdjustSheetProps): JSX.Element {
   const { shopping, toast, router } = ctx;
   const priceId = useId();
   const [qty, setQty] = useState(entry.qty);
@@ -77,7 +85,14 @@ export function AdjustSheet({ ctx, entry, onClose, onGone }: AdjustSheetProps): 
   function leave(restore: () => Promise<void>, remove: () => Promise<void>) {
     return guarded(async () => {
       await remove();
-      toast.show(`${entry.name} saiu da lista`, { label: "Desfazer", run: restore });
+      toast.show(`${entry.name} saiu da lista`, {
+        label: "Desfazer",
+        run: async () => {
+          await restore();
+          // O sheet ja desmontou: quem sabe se a tela ainda esta de pe e o pai.
+          onUndone();
+        },
+      });
       if (mounted.current) onGone();
     });
   }

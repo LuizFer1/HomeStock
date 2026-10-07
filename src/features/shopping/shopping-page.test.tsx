@@ -367,8 +367,16 @@ describe("ShoppingPage", () => {
       ),
     );
     expect(screen.queryByRole("checkbox", { name: /^Banana/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    const undo = screen.getByRole("button", { name: "Desfazer" });
+    undo.focus();
+    fireEvent.click(undo);
     expect(await screen.findByRole("checkbox", { name: /^Banana/ })).toBeTruthy();
+    // O botao do toast some: o foco vai ao titulo, como no desfazer do Repor.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { level: 1, name: "Compras" }),
+      ),
+    );
   });
 
   it("linha que some por fora com o sheet aberto fecha o sheet e foca o titulo", async () => {
@@ -412,5 +420,12 @@ describe("ShoppingPage", () => {
         expect((button as HTMLButtonElement).disabled).toBe(false);
       }
     });
+  });
+
+  it("o cartao de vazio fica acima de Pedidos da casa", async () => {
+    await setup();
+    const empty = screen.getByText("Nada para comprar.");
+    const section = screen.getByRole("heading", { level: 2, name: "Pedidos da casa" });
+    expect(empty.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

@@ -38,13 +38,14 @@ async function setup(
   const entry = pick(entriesOf(session));
   const onClose = vi.fn();
   const onGone = vi.fn();
+  const onUndone = vi.fn();
   render(
     <>
-      <AdjustSheet ctx={ctx} entry={entry} onClose={onClose} onGone={onGone} />
+      <AdjustSheet ctx={ctx} entry={entry} onClose={onClose} onGone={onGone} onUndone={onUndone} />
       <ToastView store={ctx.toast} raised={false} />
     </>,
   );
-  return { session, ctx, entry, onClose, onGone };
+  return { session, ctx, entry, onClose, onGone, onUndone };
 }
 
 const seedCafe = async (s: Session) => {
@@ -88,7 +89,15 @@ describe("AdjustSheet", () => {
     cleanup();
     const { ctx } = testContext(session);
     const fresh = first(entriesOf(session));
-    render(<AdjustSheet ctx={ctx} entry={fresh} onClose={onClose} onGone={() => {}} />);
+    render(
+      <AdjustSheet
+        ctx={ctx}
+        entry={fresh}
+        onClose={onClose}
+        onGone={() => {}}
+        onUndone={() => {}}
+      />,
+    );
     expect((screen.getByLabelText("Preço unitário") as HTMLInputElement).value).not.toBe("");
     fireEvent.click(screen.getByRole("button", { name: "Diminuir Quantidade" }));
     fireEvent.click(screen.getByRole("button", { name: "Diminuir Quantidade" }));
@@ -108,7 +117,7 @@ describe("AdjustSheet", () => {
   });
 
   it("item fixado acima do minimo: Tirar da lista apaga a marca, avisa e desfaz", async () => {
-    const { session, entry, onGone } = await setup(
+    const { session, entry, onGone, onUndone } = await setup(
       async (s) => {
         const item = await s.run((r) => r.createItem(cafe(), 10));
         await s.run((r) => r.markItem(item.id, { pinned: 1 }));
@@ -122,6 +131,7 @@ describe("AdjustSheet", () => {
     expect(markOf(session, entry.id)).toBeUndefined();
     fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
     await waitFor(() => expect(markOf(session, entry.id)?.pinned).toBe(1));
+    await waitFor(() => expect(onUndone).toHaveBeenCalledTimes(1));
   });
 
   it("item automatico nao tem Tirar da lista nem Remover", async () => {
@@ -131,7 +141,7 @@ describe("AdjustSheet", () => {
   });
 
   it("pedido: sem meta, Remover da lista apaga e Desfazer devolve", async () => {
-    const { session, entry, onGone } = await setup(async (s) => {
+    const { session, entry, onGone, onUndone } = await setup(async (s) => {
       await s.run((r) => r.addListExtra("Banana"));
     }, first);
     expect(screen.queryByText(/Você tem/)).toBeNull();
@@ -143,6 +153,7 @@ describe("AdjustSheet", () => {
     expect(extra()?.deletedAt).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
     await waitFor(() => expect(extra()?.deletedAt).toBeNull());
+    await waitFor(() => expect(onUndone).toHaveBeenCalledTimes(1));
   });
 
   it("dois cliques em Salvar gravam uma vez", async () => {

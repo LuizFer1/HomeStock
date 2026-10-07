@@ -31,6 +31,8 @@ export function ExtraField({ ctx }: ExtraFieldProps): JSX.Element {
     event.preventDefault();
     if (busy.current) return;
     busy.current = true;
+    // Limpa antes: o mesmo erro de novo remonta o alerta e o leitor de tela o le outra vez.
+    setError(null);
     try {
       await ctx.shopping.addExtra(text);
       if (!mounted.current) return;

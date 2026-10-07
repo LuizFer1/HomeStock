@@ -255,6 +255,17 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
             adjustDisabled={busy}
           />
         )}
+        {list.total === 0 && (
+          <div class="mt-4 rounded-[24px] bg-surface p-4">
+            <p class="font-semibold text-[14px]">Nada para comprar.</p>
+            <p class="text-[12px] text-neutral-700">
+              {autoList
+                ? "Itens abaixo do mínimo entram aqui sozinhos."
+                : "A lista automática está desligada nos Ajustes."}
+            </p>
+          </div>
+        )}
+
         <Section
           title="Pedidos da casa"
           tone="text-accent-2-700"
@@ -266,17 +277,6 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
         >
           <ExtraField ctx={ctx} />
         </Section>
-
-        {list.total === 0 && (
-          <div class="mt-4 rounded-[24px] bg-surface p-4">
-            <p class="font-semibold text-[14px]">Nada para comprar.</p>
-            <p class="text-[12px] text-neutral-700">
-              {autoList
-                ? "Itens abaixo do mínimo entram aqui sozinhos."
-                : "A lista automática está desligada nos Ajustes."}
-            </p>
-          </div>
-        )}
 
         {error !== null && (
           // Alvo do foco: o leitor de tela le a mensagem ao focar (sem alert duplicado).
@@ -300,6 +300,9 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
             onGone={() => {
               focusHeading.current = true;
               setAdjustingKey(null);
+            }}
+            onUndone={() => {
+              if (mounted.current) heading.current?.focus();
             }}
           />
         )}
