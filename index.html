@@ -26,11 +26,81 @@
   </head>
   <body>
     <a class="skip" href="#conteudo">Pular para o conteúdo</a>
-    <!-- secao:nav -->
+    <header class="top">
+      <div class="wrap top-row">
+        <a class="brand" href="#topo">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span class="brand-name">HomeStock</span>
+        </a>
+        <nav class="top-links" aria-label="Seções">
+          <a href="#como">Como funciona</a>
+          <a href="#casa">Para dividir</a>
+        </nav>
+        <button type="button" class="btn btn-ghost top-coffee" data-coffee-open aria-label="Doe um café">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 2v2" /><path d="M14 2v2" /><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1" /><path d="M6 2v2" /></svg>
+          <span class="top-coffee-label">Doe um café</span>
+        </button>
+        <a class="btn btn-primary top-cta" href="#baixar"><span class="cta-long">Comece grátis</span><span class="cta-short">Começar</span></a>
+      </div>
+    </header>
     <main id="conteudo" class="wrap" tabindex="-1">
-      <!-- secao:topo -->
-      <!-- secao:numeros -->
-      <!-- secao:como -->
+      <section id="topo" class="hero" aria-labelledby="topo-titulo">
+        <span class="blob hero-blob-a" data-float="14,9,0" aria-hidden="true"></span>
+        <span class="blob hero-blob-b" data-float="10,7,2" aria-hidden="true"></span>
+        <div class="hero-copy">
+          <h1 id="topo-titulo" class="hero-title" data-reveal="0"><span>Sua casa avisa</span> <span class="hero-title-accent">antes de acabar.</span></h1>
+          <p class="hero-lead" data-reveal="120">O HomeStock acompanha o que tem na despensa, na lavanderia e no banheiro. Ele avisa quando algo está no fim ou perto de vencer e monta a lista de compras sozinho. Tudo dividido com quem mora com você.</p>
+          <div data-reveal="240">
+            <div class="cta-row">
+              <button type="button" class="btn btn-primary btn-lg" data-install="ios"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /></svg>Instalar no iPhone</button>
+              <button type="button" class="btn btn-primary btn-lg" data-install="android"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /></svg>Instalar no Android</button>
+              <a class="btn btn-secondary btn-lg" href="app/" data-browser>Usar no navegador</a>
+              <a class="btn btn-primary btn-lg" href="app/" data-open-app>Abrir o app</a>
+            </div>
+            <p class="cta-note">Grátis para a casa toda · sem cartão</p>
+          </div>
+        </div>
+        <!-- hero:celular -->
+      </section>
+      <section class="stats" aria-label="HomeStock em números" data-reveal="0">
+        <ul class="stats-list">
+          <li class="stat-slot">
+            <div class="stat stat-1" data-float="6,6,0"><span class="stat-value">1 toque</span><span class="stat-label">para cadastrar pelo código de barras</span></div>
+          </li>
+          <li class="stat-slot stat-slot-2">
+            <div class="stat stat-2" data-float="7,7,1.4"><span class="stat-value">3 dias</span><span class="stat-label">de aviso antes de vencer</span></div>
+          </li>
+          <li class="stat-slot">
+            <div class="stat stat-3" data-float="6,8,2.6"><span class="stat-value">0 listas</span><span class="stat-label">escritas à mão na porta da geladeira</span></div>
+          </li>
+          <li class="stat-slot stat-slot-4">
+            <div class="stat stat-4" data-float="7,6.6,4"><span class="stat-value">0 contas</span><span class="stat-label">sem e-mail e sem senha para começar</span></div>
+          </li>
+        </ul>
+      </section>
+      <section id="como" class="como" aria-labelledby="como-titulo">
+        <div data-reveal="0">
+          <p class="kicker como-kicker">Como funciona</p>
+          <h2 id="como-titulo" class="h2 como-title">Do mercado ao armário, sem planilha.</h2>
+        </div>
+        <ul class="features">
+          <li class="card feature">
+            <span class="feature-icon feature-icon-1" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><path d="M8 7v10" /><path d="M12 7v10" /><path d="M17 7v10" /></svg></span>
+            <h3 class="feature-title">Escaneou, guardou</h3>
+            <p class="feature-copy">Aponte a câmera para o código de barras. Se o produto já está no estoque, o HomeStock reconhece na hora e você só ajusta quantidade e validade.</p>
+          </li>
+          <li class="card feature">
+            <span class="feature-icon feature-icon-2" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg></span>
+            <h3 class="feature-title">Aviso antes de acabar</h3>
+            <p class="feature-copy">O app acompanha quanto a casa consome e avisa quando o café fica abaixo do mínimo ou quando o iogurte está para vencer.</p>
+          </li>
+          <li class="card feature">
+            <span class="feature-icon feature-icon-3" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" /><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" /></svg></span>
+            <h3 class="feature-title">Lista que se escreve sozinha</h3>
+            <p class="feature-copy">O que está no fim entra na lista de compras sozinho, com a quantidade certa. Quando você marca como comprado, o estoque é reposto.</p>
+          </li>
+        </ul>
+      </section>
       <!-- secao:casa -->
       <!-- secao:baixar -->
       <!-- secao:cafe -->

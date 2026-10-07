@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadLanding } from "./landing-html.fake";
+import { loadLanding, textOf } from "./landing-html.fake";
 
 const REPO = "https://github.com/LuizFer1/HomeStock";
 
@@ -37,5 +37,117 @@ describe("index.html da landing", () => {
     const css = readFileSync(resolve(import.meta.dirname, "landing.css"), "utf8");
     expect(css).not.toMatch(/https?:\/\//);
     expect(css).not.toMatch(/@import\s+url\(/);
+  });
+});
+
+describe("acessibilidade do markup", () => {
+  const doc = loadLanding();
+
+  it("todo botao declara type=button", () => {
+    for (const b of doc.querySelectorAll("button")) {
+      expect(b.getAttribute("type"), b.outerHTML.slice(0, 80)).toBe("button");
+    }
+  });
+
+  it("todo svg e decorativo", () => {
+    for (const svg of doc.querySelectorAll("svg")) {
+      expect(svg.getAttribute("aria-hidden")).toBe("true");
+    }
+  });
+
+  it("ids unicos", () => {
+    const ids = [...doc.querySelectorAll("[id]")].map((el) => el.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("toda secao rotulada aponta para um titulo que existe", () => {
+    for (const s of doc.querySelectorAll("section[aria-labelledby]")) {
+      const id = s.getAttribute("aria-labelledby") ?? "";
+      expect(doc.getElementById(id), id).not.toBeNull();
+    }
+  });
+});
+
+describe("nav", () => {
+  const doc = loadLanding();
+
+  it("a marca leva ao topo e os links levam as secoes", () => {
+    expect(doc.querySelector("header.top a.brand")?.getAttribute("href")).toBe("#topo");
+    const links = [...doc.querySelectorAll('header.top nav[aria-label="Seções"] a')].map((a) => [
+      textOf(a),
+      a.getAttribute("href"),
+    ]);
+    expect(links).toEqual([
+      ["Como funciona", "#como"],
+      ["Para dividir", "#casa"],
+    ]);
+  });
+
+  it("o cafe tem nome mesmo so com icone e o CTA vai para Baixar", () => {
+    const coffee = doc.querySelector("header.top button[data-coffee-open]");
+    expect(coffee?.getAttribute("aria-label")).toBe("Doe um café");
+    const cta = doc.querySelector("header.top a.top-cta");
+    expect(cta?.getAttribute("href")).toBe("#baixar");
+    expect(textOf(cta?.querySelector(".cta-long"))).toBe("Comece grátis");
+    expect(textOf(cta?.querySelector(".cta-short"))).toBe("Começar");
+  });
+});
+
+describe("hero", () => {
+  const doc = loadLanding();
+  const hero = doc.querySelector("section#topo");
+
+  it("um H1 so, com as duas linhas", () => {
+    const h1s = doc.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(textOf(h1s[0])).toBe("Sua casa avisa antes de acabar.");
+    expect(hero?.getAttribute("aria-labelledby")).toBe("topo-titulo");
+  });
+
+  it("CTAs de instalacao, do navegador e do app", () => {
+    expect(textOf(hero?.querySelector('button[data-install="ios"]'))).toBe("Instalar no iPhone");
+    expect(textOf(hero?.querySelector('button[data-install="android"]'))).toBe(
+      "Instalar no Android",
+    );
+    const browser = hero?.querySelector("a[data-browser]");
+    expect(textOf(browser)).toBe("Usar no navegador");
+    expect(browser?.getAttribute("href")).toBe("app/");
+    const open = hero?.querySelector("a[data-open-app]");
+    expect(textOf(open)).toBe("Abrir o app");
+    expect(open?.getAttribute("href")).toBe("app/");
+    expect(textOf(hero?.querySelector(".cta-note"))).toBe("Grátis para a casa toda · sem cartão");
+  });
+});
+
+describe("numeros", () => {
+  const doc = loadLanding();
+
+  it("quatro circulos com valor e legenda", () => {
+    const section = doc.querySelector('section[aria-label="HomeStock em números"]');
+    const stats = [...(section?.querySelectorAll(".stat") ?? [])].map((s) => [
+      textOf(s.querySelector(".stat-value")),
+      textOf(s.querySelector(".stat-label")),
+    ]);
+    expect(stats).toEqual([
+      ["1 toque", "para cadastrar pelo código de barras"],
+      ["3 dias", "de aviso antes de vencer"],
+      ["0 listas", "escritas à mão na porta da geladeira"],
+      ["0 contas", "sem e-mail e sem senha para começar"],
+    ]);
+  });
+});
+
+describe("como funciona", () => {
+  const doc = loadLanding();
+
+  it("titulo e tres cards", () => {
+    const section = doc.querySelector("section#como");
+    expect(textOf(doc.getElementById("como-titulo"))).toBe("Do mercado ao armário, sem planilha.");
+    const titles = [...(section?.querySelectorAll(".feature h3") ?? [])].map((h) => textOf(h));
+    expect(titles).toEqual([
+      "Escaneou, guardou",
+      "Aviso antes de acabar",
+      "Lista que se escreve sozinha",
+    ]);
   });
 });
