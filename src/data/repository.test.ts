@@ -66,6 +66,39 @@ describe("comandos", () => {
     expect(compareHlc(next.updatedAt, item.updatedAt)).toBe(1);
   });
 
+  it("createItem recusa item invalido sem gravar item nem movimento", async () => {
+    const { db, repo } = await openTestRepository();
+    await expect(repo.createItem(cafe({ name: " " }), 4)).rejects.toThrow("Dê um nome ao item.");
+    expect(await db.items.count()).toBe(0);
+    expect(await db.movements.count()).toBe(0);
+  });
+
+  it("createItem grava o nome sem espacos nas pontas", async () => {
+    const { repo } = await openTestRepository();
+    expect((await repo.createItem(cafe({ name: "  Café " }))).name).toBe("Café");
+  });
+
+  it("updateItem recusa patch invalido e mantem a linha", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe());
+    await expect(repo.updateItem(item.id, { min: -1 })).rejects.toThrow("O mínimo vai de 0 a 999.");
+    expect(await db.items.get(item.id)).toEqual(item);
+  });
+
+  it("updateItem muda so o que veio no patch", async () => {
+    const { repo } = await openTestRepository();
+    const item = await repo.createItem(cafe());
+    const next = await repo.updateItem(item.id, { name: "Chá" });
+    expect(next).toMatchObject({ ...cafe(), name: "Chá" });
+  });
+
+  it("updateItem trata undefined como inalterado", async () => {
+    const { repo } = await openTestRepository();
+    const item = await repo.createItem(cafe());
+    const next = await repo.updateItem(item.id, { ean: undefined });
+    expect(next.ean).toBe("7891234567890");
+  });
+
   it("updateItem recusa quantidade", async () => {
     const { repo } = await openTestRepository();
     const item = await repo.createItem(cafe());

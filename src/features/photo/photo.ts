@@ -6,6 +6,12 @@ export interface PhotoSpec {
 /** O maior avatar do handoff tem 170px (passo 3); 160 e 16KB cobrem sem pesar no sync. */
 export const AVATAR_PHOTO: PhotoSpec = { size: 160, maxChars: 16 * 1024 };
 
+/**
+ * Hero do Detalhe: 300px de altura e ate 480 de largura, com object-cover e o
+ * filtro washed. 400px bastam; 40KB mantem a linha do item leve no sync.
+ */
+export const ITEM_PHOTO: PhotoSpec = { size: 400, maxChars: 40 * 1024 };
+
 export interface Crop {
   x: number;
   y: number;

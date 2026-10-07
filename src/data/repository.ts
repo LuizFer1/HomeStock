@@ -3,7 +3,7 @@ import { createRowClock, type RowClock, type Stamp } from "../domain/clock/row-c
 import { seedCategories, seedLocations } from "../domain/defaults/seeds";
 import type { RandomChunk, Ulid } from "../domain/ids/ulid";
 import { type BaseRow, type Draft, isAlive } from "../domain/model/base";
-import type { Category, Item, Location } from "../domain/model/item";
+import { type Category, type Item, type Location, normalizeItemDraft } from "../domain/model/item";
 import type { ListExtra } from "../domain/model/list-extra";
 import { type Member, type MemberDraft, normalizeMemberDraft } from "../domain/model/member";
 import type { Movement, MovementReason, Price } from "../domain/model/movement";
@@ -179,10 +179,10 @@ export async function openRepository(deps: RepositoryDeps) {
       if (!Number.isInteger(initialQty) || initialQty < 0) {
         throw new Error(`Quantidade inicial exige inteiro >= 0, recebeu ${initialQty}`);
       }
-      assertCount(draft.usualQty, "Quantidade usual");
+      const clean = normalizeItemDraft(draft);
       return db.transaction("rw", db.items, db.movements, db.meta, async () => {
         const s = await stamp();
-        const item: Item = { ...fresh(s), ...draft };
+        const item: Item = { ...fresh(s), ...clean };
         await db.items.add(item);
         if (initialQty > 0) await addMovement(item.id, initialQty, "initial", s);
         return item;
@@ -194,7 +194,21 @@ export async function openRepository(deps: RepositoryDeps) {
       if ("qty" in patch) throw new Error("Quantidade muda por movimento, nao por patch");
       return db.transaction("rw", db.items, db.meta, async () => {
         const item = await aliveItem(id);
-        const next = touched<Item>(item, await stamp(), patch);
+        const clean = normalizeItemDraft({
+          name: item.name,
+          size: item.size,
+          unit: item.unit,
+          categoryId: item.categoryId,
+          locationId: item.locationId,
+          min: item.min,
+          usualQty: item.usualQty,
+          expiresAt: item.expiresAt,
+          ean: item.ean,
+          photo: item.photo,
+          // undefined significa "inalterado", nao "apague o campo".
+          ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)),
+        });
+        const next = touched<Item>(item, await stamp(), clean);
         await db.items.put(next);
         return next;
       });

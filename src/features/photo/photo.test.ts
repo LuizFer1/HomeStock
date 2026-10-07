@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { AVATAR_PHOTO, type PhotoDeps, processPhoto, QUALITIES, squareCrop } from "./photo";
+import {
+  AVATAR_PHOTO,
+  ITEM_PHOTO,
+  type PhotoDeps,
+  processPhoto,
+  QUALITIES,
+  squareCrop,
+} from "./photo";
 
 function deps(lengths: number[]) {
   const encode = vi.fn(async (_s, _c, _size, quality: number) => {
@@ -52,6 +59,12 @@ describe("processPhoto", () => {
     const d = deps([5, 5, 5]);
     await processPhoto(new Blob(), d, AVATAR_PHOTO);
     expect(d.encode.mock.calls[0]?.[2]).toBe(160);
+  });
+
+  it("passa o tamanho do produto ao encode", async () => {
+    const d = deps([5, 5, 5]);
+    await processPhoto(new Blob(), d, ITEM_PHOTO);
+    expect(d.encode.mock.calls[0]?.[2]).toBe(400);
   });
 
   it("devolve o segundo degrau quando so ele cabe", async () => {
