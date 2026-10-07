@@ -1,6 +1,6 @@
 import { Search } from "lucide-preact";
 import type { JSX } from "preact";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { AppContext } from "../../app-context";
 import type { Ulid } from "../../domain/ids/ulid";
 import { Button } from "../ui/button";
@@ -22,12 +22,15 @@ function nextFrame(run: () => void): void {
 
 /**
  * Foca o card devolvido pelo Desfazer. Depois do proximo quadro: o card so
- * volta ao DOM quando a lista redesenha com o snapshot novo. Se a pessoa ja
- * saiu do Estoque, nao ha card e nada acontece.
+ * volta ao DOM quando a lista redesenha com o snapshot novo. Escondido pela
+ * busca ou pelo filtro, o foco vai ao titulo (o botao Desfazer some junto com
+ * o toast). Se a pessoa ja saiu do Estoque, nada acontece.
  */
-function focusCard(id: Ulid): void {
+function focusCard(id: Ulid, fallback: HTMLElement | null): void {
   nextFrame(() => {
-    document.querySelector<HTMLElement>(`[data-item-id="${id}"]`)?.focus();
+    const restored = document.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
+    if (restored !== null) restored.focus();
+    else if (fallback?.isConnected) fallback.focus();
   });
 }
 
@@ -38,7 +41,13 @@ const CHIP =
 export function StockPage({ ctx }: StockPageProps): JSX.Element {
   const { session, router, items, stock, toast } = ctx;
   const data = session.data.value;
-  const rows = buildStockRows(data, ctx.today(), session.prefs.value.expiringDays);
+  const today = ctx.today();
+  const expiringDays = session.prefs.value.expiringDays;
+  // Digitar na busca redesenha a pagina; as linhas so mudam com os dados.
+  const rows = useMemo(
+    () => buildStockRows(data, today, expiringDays),
+    [data, today, expiringDays],
+  );
   const filter = validFilter(stock.filter.value, data);
   const filters = buildFilters(rows, data, filter);
   const query = stock.query.value;
@@ -54,9 +63,14 @@ export function StockPage({ ctx }: StockPageProps): JSX.Element {
   const focusHeading = useRef(false);
 
   useLayoutEffect(() => {
-    // Volta a posicao de antes do Detalhe. O happy-dom nao implementa scrollTo.
+    // Volta a posicao de antes do Detalhe, uma vez so: zerada aqui, a troca
+    // de aba seguinte nao pula para uma posicao velha.
+    const saved = stock.scrollY.peek();
+    if (saved === 0) return;
+    stock.scrollY.value = 0;
+    // O happy-dom nao implementa scrollTo.
     try {
-      window.scrollTo(0, stock.scrollY.peek());
+      window.scrollTo(0, saved);
     } catch {}
   }, []);
 
@@ -75,14 +89,21 @@ export function StockPage({ ctx }: StockPageProps): JSX.Element {
   }
 
   async function remove(id: Ulid, name: string) {
-    await items.remove(id);
+    // Marcado antes do await: o snapshot novo pode redesenhar a lista (e fechar
+    // o sheet) antes de esta funcao continuar, e o efeito precisa ver a marca.
     focusHeading.current = true;
+    try {
+      await items.remove(id);
+    } catch (cause) {
+      focusHeading.current = false;
+      throw cause;
+    }
     setMenuId(null);
     toast.show(`${name} removido`, {
       label: "Desfazer",
       run: async () => {
         await items.restore(id);
-        focusCard(id);
+        focusCard(id, heading.current);
       },
     });
   }

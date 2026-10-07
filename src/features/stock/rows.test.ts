@@ -4,7 +4,6 @@ import { fakeItem, fakeMovement } from "../../domain/model/row.fake";
 import {
   buildFilters,
   buildStockRows,
-  fold,
   levelOf,
   type StockRow,
   validFilter,
@@ -156,12 +155,6 @@ describe("validFilter", () => {
     expect(validFilter("loc:l1", data)).toBe("loc:l1");
     expect(validFilter("cat:l1", data)).toBe("all");
     expect(validFilter("all", data)).toBe("all");
-  });
-});
-
-describe("fold", () => {
-  it("tira acento, caixa e espacos das pontas", () => {
-    expect(fold("  Café em GRÃOS ")).toBe("cafe em graos");
   });
 });
 

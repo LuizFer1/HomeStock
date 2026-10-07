@@ -229,6 +229,63 @@ describe("StockPage", () => {
     expect(screen.getByText("Nenhum item encontrado.")).toBeTruthy();
   });
 
+  it("restaura a rolagem guardada uma vez so", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { ctx } = testContext(session);
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    ctx.stock.scrollY.value = 300;
+    render(<StockPage ctx={ctx} />);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith(0, 300);
+    expect(ctx.stock.scrollY.value).toBe(0);
+
+    // Troca de aba e volta: nao pula de novo para a posicao velha.
+    cleanup();
+    render(<StockPage ctx={ctx} />);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    scrollTo.mockRestore();
+  });
+
+  it("Desfazer com o card escondido pela busca foca o titulo", async () => {
+    await setup();
+    fireEvent.contextMenu(card("Café em grãos"));
+    fireEvent.click(screen.getByRole("button", { name: "Deletar" }));
+    await waitFor(() => expect(cards()).toHaveLength(1));
+    fireEvent.input(screen.getByRole("searchbox", { name: "Buscar item ou código" }), {
+      target: { value: "arroz" },
+    });
+    const undo = screen.getByRole("button", { name: "Desfazer" });
+    undo.focus();
+    fireEvent.click(undo);
+    const heading = screen.getByRole("heading", { name: "Estoque" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Desfazer" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+
+  it("falha ao deletar e Cancelar nao manda o foco ao titulo", async () => {
+    await setup({
+      overrides: {
+        items: {
+          remove: async () => {
+            throw new Error("Disco cheio.");
+          },
+          restore: async () => {},
+        },
+      },
+    });
+    const target = card("Café em grãos");
+    target.focus();
+    fireEvent.contextMenu(target);
+    fireEvent.click(screen.getByRole("button", { name: "Deletar" }));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(dialog().open).toBe(false));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(document.activeElement).toBe(target);
+  });
+
   it("filtro e busca sobrevivem a remontagem (store)", async () => {
     const { ctx } = await setup();
     fireEvent.click(screen.getByRole("button", { name: "Armário 1" }));

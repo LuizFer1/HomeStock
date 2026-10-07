@@ -1,14 +1,7 @@
 import { MAX_PLACE_NAME } from "../../domain/model/place-name";
+import { foldText } from "../../domain/text/fold-text";
 
 export { MAX_PLACE_NAME };
-
-function key(s: string): string {
-  return s
-    .trim()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLocaleLowerCase("pt-BR");
-}
 
 /**
  * Erro de nome para mostrar sob o campo, ou null. Repetido compara sem
@@ -22,7 +15,7 @@ export function checkName(
   const trimmed = name.trim();
   if (trimmed === "") return "Dê um nome.";
   if (trimmed.length > MAX_PLACE_NAME) return `Use até ${MAX_PLACE_NAME} letras.`;
-  const wanted = key(trimmed);
-  const same = siblings.find((s) => s.id !== selfId && key(s.name) === wanted);
+  const wanted = foldText(trimmed);
+  const same = siblings.find((s) => s.id !== selfId && foldText(s.name) === wanted);
   return same === undefined ? null : `Já existe ${same.name}.`;
 }

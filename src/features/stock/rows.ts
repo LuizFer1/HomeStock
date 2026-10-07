@@ -10,6 +10,7 @@ import {
   quantities,
   statusOf,
 } from "../../domain/projections/stock";
+import { foldText } from "../../domain/text/fold-text";
 import { statusNote } from "../item/labels";
 
 export type FilterKey = "all" | `cat:${string}` | `loc:${string}`;
@@ -35,7 +36,8 @@ export interface StockFilter {
 /** O que pede atencao primeiro (markup). */
 const STATUS_ORDER: Record<PrimaryStatus, number> = { out: 0, low: 1, exp: 2, ok: 3 };
 
-const byName = (a: string, b: string) => a.localeCompare(b, "pt-BR");
+// Um collator so: `localeCompare` com locale monta um a cada comparacao.
+const byName = new Intl.Collator("pt-BR").compare;
 
 /** Largura da barra do card: o dobro do minimo enche a barra; piso de 4 para nao sumir. */
 export function levelOf(qty: number, min: number): number {
@@ -88,17 +90,27 @@ export function buildFilters(
   data: Pick<Snapshot, "categories" | "locations">,
   active: FilterKey,
 ): StockFilter[] {
+  // Uma passada so pelas linhas, em vez de uma por categoria e por local.
+  const byCategory = new Map<Ulid, number>();
+  const byLocation = new Map<Ulid, number>();
+  for (const { item } of rows) {
+    byCategory.set(item.categoryId, (byCategory.get(item.categoryId) ?? 0) + 1);
+    if (item.locationId !== null) {
+      byLocation.set(item.locationId, (byLocation.get(item.locationId) ?? 0) + 1);
+    }
+  }
+
   const group = (
     places: readonly (Category | Location)[],
     prefix: "cat" | "loc",
-    of: (item: Item) => Ulid | null,
+    counts: ReadonlyMap<Ulid, number>,
   ): StockFilter[] =>
     places
       .filter((place) => isAlive(place))
       .map((place) => ({
         key: `${prefix}:${place.id}` as FilterKey,
         label: place.name,
-        count: rows.filter((row) => of(row.item) === place.id).length,
+        count: counts.get(place.id) ?? 0,
       }))
       // Seis locais semeados e vazios virariam seis chips "0" no carrossel.
       .filter((f) => f.count > 0 || f.key === active)
@@ -106,8 +118,8 @@ export function buildFilters(
 
   return [
     { key: "all", label: "Todos", count: rows.length },
-    ...group(data.categories, "cat", (item) => item.categoryId),
-    ...group(data.locations, "loc", (item) => item.locationId),
+    ...group(data.categories, "cat", byCategory),
+    ...group(data.locations, "loc", byLocation),
   ];
 }
 
@@ -123,11 +135,6 @@ export function validFilter(
   return table.some((row) => row.id === id && isAlive(row)) ? key : "all";
 }
 
-/** Sem acento, sem caixa, com trim. */
-export function fold(text: string): string {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-}
-
 function inFilter(item: Item, filter: FilterKey): boolean {
   if (filter === "all") return true;
   if (filter.startsWith("cat:")) return item.categoryId === filter.slice(4);
@@ -140,12 +147,12 @@ export function visibleRows(
   filter: FilterKey,
   query: string,
 ): StockRow[] {
-  const q = fold(query);
+  const q = foldText(query);
   const digits = /^\d+$/.test(q);
   return rows.filter(({ item }) => {
     if (!inFilter(item, filter)) return false;
     if (q === "") return true;
-    if (fold(item.name).includes(q) || fold(item.size).includes(q)) return true;
+    if (foldText(item.name).includes(q) || foldText(item.size).includes(q)) return true;
     return digits && (item.ean?.includes(q) ?? false);
   });
 }
