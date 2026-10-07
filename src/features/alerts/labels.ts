@@ -102,7 +102,7 @@ function activityMeta(alert: ActivityAlert, today: string): string {
   const d = daysBetween(alert.day, today);
   const clock = clockOf(alert.at);
   const when =
-    d <= 0 ? `hoje, ${clock}` : d === 1 ? `ontem, ${clock}` : `${dayMonthOf(alert.at)}, ${clock}`;
+    d === 0 ? `hoje, ${clock}` : d === 1 ? `ontem, ${clock}` : `${dayMonthOf(alert.at)}, ${clock}`;
   return `${namesOf(alert.entries.map((e) => e.name))} · ${when}`;
 }
 

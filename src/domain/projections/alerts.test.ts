@@ -509,6 +509,35 @@ describe("alertsOf: atividade da casa", () => {
     expect(flat(off).map((a) => a.kind)).toEqual(["out"]);
   });
 
+  it("uso e guardar do mesmo ator no mesmo dia sao dois cartoes", () => {
+    const item = cafe();
+    const movements = [
+      fakeMovement(item.id, -1, { authorId: RAFA, createdAt: at("2026-10-06", 9) }),
+      fakeMovement(item.id, 2, { authorId: RAFA, createdAt: at("2026-10-06", 10) }),
+    ];
+    const cards = activity(alertsOf(withLocal({ items: [item], movements })));
+    expect(cards.map((c) => c.activity).sort()).toEqual(["restock", "use"]);
+  });
+
+  it("cartoes com o mesmo at saem pela key", () => {
+    const item = cafe();
+    const when = at("2026-10-06", 9);
+    const movements = [
+      fakeMovement(item.id, -1, { authorId: RAFA, createdAt: when }),
+      fakeMovement(item.id, 2, { authorId: RAFA, createdAt: when }),
+    ];
+    const cards = activity(alertsOf(withLocal({ items: [item], movements })));
+    expect(cards.map((c) => c.key)).toEqual([
+      "activity:restock:RAFA:2026-10-06",
+      "activity:use:RAFA:2026-10-06",
+    ]);
+  });
+
+  it("pedido sem requestedBy e sem authorId e ignorado", () => {
+    const orphan = extra({ requestedBy: undefined, authorId: null });
+    expect(activity(alertsOf(withLocal({ listExtras: [orphan] })))).toEqual([]);
+  });
+
   it("ordena a atividade por at decrescente", () => {
     const item = fakeItem({ min: 0 });
     const early = extra({ createdAt: at("2026-10-06", 8) });

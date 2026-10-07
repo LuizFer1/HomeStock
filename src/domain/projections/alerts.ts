@@ -135,6 +135,8 @@ function compareAlerts(a: Alert, b: Alert): number {
   if (a.kind === "activity" && b.kind === "activity") {
     return a.at < b.at ? 1 : a.at > b.at ? -1 : a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
   }
+  // So estreita o tipo: out/low/exp tem `item` e atividade nunca chega aqui misturada
+  // com eles (o KIND_ORDER ja os separou).
   if (a.kind === "activity" || b.kind === "activity") return 0;
   if (a.kind === "exp" && b.kind === "exp" && a.daysLeft !== b.daysLeft) {
     return a.daysLeft - b.daysLeft;
@@ -236,7 +238,7 @@ export function activityAlerts(input: AlertInput, resolved: ReadonlySet<string>)
         kind: "activity",
         key,
         resolveKeys: [],
-        group: daysBetween(ev.day, input.today) <= 0 ? "today" : "week",
+        group: daysBetween(ev.day, input.today) === 0 ? "today" : "week",
         resolved: false,
         activity: ev.activity,
         actorId: ev.actorId,
