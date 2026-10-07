@@ -56,7 +56,7 @@ describe("createSettingsStore", () => {
     await store.removeLocation(loc.id);
     const find = (rows: { id: string; deletedAt: string | null }[], id: string) =>
       rows.find((r) => r.id === id)?.deletedAt;
-    expect(find(session.data.value.categories, cat.id)).not.toBeNull();
-    expect(find(session.data.value.locations, loc.id)).not.toBeNull();
+    expect(find(session.data.value.categories, cat.id)).toEqual(expect.any(String));
+    expect(find(session.data.value.locations, loc.id)).toEqual(expect.any(String));
   });
 });

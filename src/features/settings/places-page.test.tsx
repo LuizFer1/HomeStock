@@ -117,10 +117,10 @@ describe("PlacesPage", () => {
     expect(screen.getAllByText("Nenhum item").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Remover Despensa" }));
-    expect(screen.getByRole("button", { name: "Remover? Despensa" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Confirmar remoção de Despensa" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Renomear Despensa" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Remover? Despensa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar remoção de Despensa" }));
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Renomear Despensa" })).toBeNull(),
     );
@@ -134,11 +134,47 @@ describe("PlacesPage", () => {
     await screen.findByText("1 item");
     vi.useFakeTimers();
     fireEvent.click(screen.getByRole("button", { name: "Remover Despensa" }));
-    expect(screen.getByRole("button", { name: "Remover? Despensa" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Confirmar remoção de Despensa" })).toBeTruthy();
     act(() => {
       vi.advanceTimersByTime(4100);
     });
     expect(screen.getByRole("button", { name: "Remover Despensa" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Remover? Despensa" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Confirmar remoção de Despensa" })).toBeNull();
+  });
+
+  it("o foco acompanha o Remover?: vai ao botao, volta a lixeira e passa ao campo", async () => {
+    const { session } = await setup();
+    await act(async () => {
+      await session.run((r) => r.createItem(cafe({ categoryId: DEFAULT_CATEGORY_ID }), 1));
+    });
+    await screen.findByText("1 item");
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Remover Despensa" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Confirmar remoção de Despensa" }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(4100);
+    });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Remover Despensa" }));
+  });
+
+  it("depois de remover, o foco vai ao campo Nova categoria", async () => {
+    await setup();
+    fireEvent.click(screen.getByRole("button", { name: "Remover Higiene" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Renomear Higiene" })).toBeNull(),
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText("Nova categoria"));
+  });
+
+  it("renomear para o mesmo nome fecha o campo sem gravar", async () => {
+    const { store } = await setup();
+    const spy = vi.spyOn(store, "upsertLocation");
+    fireEvent.click(screen.getByRole("button", { name: "Renomear Freezer" }));
+    fireEvent.input(screen.getByLabelText("Nome de Freezer"), { target: { value: " Freezer " } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar Freezer" }));
+    expect(screen.queryByLabelText("Nome de Freezer")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -38,9 +38,11 @@ interface PlaceRowProps {
   siblings: ReadonlyArray<{ id: string; name: string }>;
   onRename: (name: string, id: Ulid) => Promise<void>;
   onRemove: (id: Ulid) => Promise<void>;
+  /** Depois de remover a linha some e leva o foco: a lista decide para onde ele vai. */
+  onRemoved: () => void;
 }
 
-function PlaceRow({ id, name, count, siblings, onRename, onRemove }: PlaceRowProps) {
+function PlaceRow({ id, name, count, siblings, onRename, onRemove, onRemoved }: PlaceRowProps) {
   const inputId = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
@@ -52,6 +54,7 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove }: PlaceRowPro
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const row = useRef<HTMLDivElement>(null);
   const wasEditing = useRef(false);
+  const wasArmed = useRef(false);
 
   useEffect(
     () => () => {
@@ -67,6 +70,20 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove }: PlaceRowPro
       row.current?.querySelector<HTMLElement>("[data-rename] button")?.focus();
     wasEditing.current = editing;
   }, [editing]);
+
+  // Lixeira vira "Remover?" e volta: o botao que sumiu levava o foco para o body.
+  useEffect(() => {
+    const box = row.current;
+    if (armed) {
+      box?.querySelector<HTMLElement>("[data-remove] button")?.focus();
+    } else if (wasArmed.current && !editing) {
+      const active = document.activeElement;
+      if (active === document.body || box?.contains(active)) {
+        box?.querySelector<HTMLElement>("[data-remove] button")?.focus();
+      }
+    }
+    wasArmed.current = armed;
+  }, [armed, editing]);
 
   function disarm() {
     if (timer.current !== null) clearTimeout(timer.current);
@@ -88,6 +105,11 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove }: PlaceRowPro
 
   async function save() {
     if (working.current) return;
+    // Nada mudou: fechar sem gravar evita uma escrita (e um HLC novo) a toa.
+    if (draft.trim() === name) {
+      cancel();
+      return;
+    }
     const problem = checkName(draft, siblings, id);
     if (problem !== null) {
       setError(problem);
@@ -123,6 +145,7 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove }: PlaceRowPro
     setBusy(true);
     try {
       await onRemove(id);
+      onRemoved();
     } catch (cause) {
       setError(describeError(cause));
     } finally {
@@ -176,20 +199,22 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove }: PlaceRowPro
               <Pencil size={18} strokeWidth={2.75} />
             </IconButton>
           </span>
-          {armed ? (
-            <Button
-              variant="ghost"
-              aria-label={`Remover? ${name}`}
-              disabled={busy}
-              onClick={() => void remove()}
-            >
-              Remover?
-            </Button>
-          ) : (
-            <IconButton label={`Remover ${name}`} onClick={() => void remove()}>
-              <Trash2 size={18} strokeWidth={2.75} />
-            </IconButton>
-          )}
+          <span data-remove class="contents">
+            {armed ? (
+              <Button
+                variant="ghost"
+                aria-label={`Confirmar remoção de ${name}`}
+                disabled={busy}
+                onClick={() => void remove()}
+              >
+                Remover?
+              </Button>
+            ) : (
+              <IconButton label={`Remover ${name}`} onClick={() => void remove()}>
+                <Trash2 size={18} strokeWidth={2.75} />
+              </IconButton>
+            )}
+          </span>
         </div>
       )}
       {error !== null ? (
@@ -216,6 +241,7 @@ function PlaceList({ kind, rows, onUpsert, onRemove }: PlaceListProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const adding = useRef(false);
+  const addBox = useRef<HTMLDivElement>(null);
 
   async function add() {
     if (adding.current) return;
@@ -256,9 +282,10 @@ function PlaceList({ kind, rows, onUpsert, onRemove }: PlaceListProps) {
             siblings={rows}
             onRename={onUpsert}
             onRemove={onRemove}
+            onRemoved={() => addBox.current?.querySelector("input")?.focus()}
           />
         ))}
-        <div class="flex flex-col gap-2 py-2">
+        <div ref={addBox} class="flex flex-col gap-2 py-2">
           <label for={fieldId} class="sr-only">
             {copy.newLabel}
           </label>

@@ -121,6 +121,7 @@ describe("csvField", () => {
     expect(csvField("-1")).toBe("'-1");
     expect(csvField("+1")).toBe("'+1");
     expect(csvField("@x")).toBe("'@x");
+    expect(csvField("\tx")).toBe("'\tx");
     expect(csvField("a-b")).toBe("a-b");
   });
 });

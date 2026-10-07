@@ -21,7 +21,7 @@ export const CSV_HEADER = [
  * formula, entao ganha `'` na frente; `;` `"` e quebra de linha pedem aspas.
  */
 export function csvField(value: string): string {
-  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
   return /[;"\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
@@ -58,7 +58,7 @@ export function buildStockCsv(
   });
 
   // BOM para o Excel pt-BR ler UTF-8; CRLF tambem depois da ultima linha.
-  return `﻿${[CSV_HEADER.join(";"), ...lines].map((l) => `${l}\r\n`).join("")}`;
+  return `\uFEFF${[CSV_HEADER.join(";"), ...lines].map((l) => `${l}\r\n`).join("")}`;
 }
 
 /** "homestock-estoque-2026-10-06.csv" */
