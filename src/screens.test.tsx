@@ -32,6 +32,12 @@ describe("renderScreen", () => {
     expect((screen.getByLabelText("Seu nome") as HTMLInputElement).value).toBe("Ana");
   });
 
+  it("alerts mostra a tela Alertas", async () => {
+    const { ctx } = await setup();
+    render(renderScreen({ kind: "alerts" }, ctx));
+    expect(screen.getByRole("heading", { level: 1, name: "Alertas" })).toBeTruthy();
+  });
+
   it("item mostra o Detalhe", async () => {
     const { ctx } = await setup();
     const item = await ctx.session.run((repo) => repo.createItem(cafe(), 2));

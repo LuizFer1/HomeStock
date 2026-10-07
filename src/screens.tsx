@@ -1,5 +1,6 @@
 import type { VNode } from "preact";
 import type { AppContext } from "./app-context";
+import { AlertsPage } from "./features/alerts/alerts-page";
 import { ItemDetailPage } from "./features/item/detail-page";
 import { ItemForm } from "./features/item/item-form";
 import { MemberWizard } from "./features/onboarding/member-wizard";
@@ -28,6 +29,10 @@ function SettingsScreen({ ctx }: ScreenProps) {
       onLeave={ctx.onLeave}
     />
   );
+}
+
+function AlertsScreen({ ctx }: ScreenProps) {
+  return <AlertsPage ctx={ctx} />;
 }
 
 function PlacesScreen({ ctx }: ScreenProps) {
@@ -66,6 +71,8 @@ export const SCREENS = {
   item: (s, ctx) => (s.id ? <ItemDetailPage ctx={ctx} id={s.id} /> : null),
   "item-edit": (s, ctx) => (s.id ? <ItemForm ctx={ctx} mode="edit" id={s.id} /> : null),
   // FAB Escanear: a camera abre ao montar. Estoque vazio: a mesma tela, camera parada.
+  // Pelo sino e pelo contador "vencendo" do Inicio.
+  alerts: (s, ctx) => <AlertsScreen ctx={ctx} screen={s} />,
   scan: (_s, ctx) => <AddItemPage ctx={ctx} kind="scan" />,
   "item-new": (_s, ctx) => <AddItemPage ctx={ctx} kind="item-new" />,
 } as const satisfies Readonly<Record<string, ScreenRender>>;

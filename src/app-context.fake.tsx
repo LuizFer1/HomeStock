@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals";
 import { type Mock, vi } from "vitest";
 import type { AppContext } from "./app-context";
+import { createAlertsStore } from "./features/alerts/store";
 import { createItemStore } from "./features/item/store";
 import { noCameraEnv } from "./features/scanner/scanner.fake";
 import type { Session } from "./features/session/session";
@@ -43,6 +44,7 @@ export function testContext(
     items: createItemStore(session),
     stock: createStockStore(),
     shopping: createShoppingStore(session),
+    alerts: createAlertsStore(session),
     today: () => "2026-10-06",
     processAvatar: async () => "data:image/webp;base64,AAA",
     processItemPhoto: async () => "data:image/webp;base64,AAA",

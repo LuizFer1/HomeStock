@@ -1,3 +1,4 @@
+import type { AlertsStore } from "./features/alerts/store";
 import type { ItemStore } from "./features/item/store";
 import type { ScannerEnv } from "./features/scanner/env";
 import type { Session } from "./features/session/session";
@@ -21,6 +22,8 @@ export interface AppContext {
   stock: StockStore;
   /** Lista de compras: marcar, ajustar, pedidos e o repor em lote. */
   shopping: ShoppingStore;
+  /** Resolver e reabrir alertas. */
+  alerts: AlertsStore;
   /** 'YYYY-MM-DD' local, para status e notas de validade. */
   today: () => string;
   /** Pipeline da foto de perfil (o antigo `processFile`). */
