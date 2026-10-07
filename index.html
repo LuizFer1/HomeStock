@@ -1,20 +1,41 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-platform="android">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f5ead8" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="HomeStock" />
-    <meta name="description" content="Despensa e lista de compras da casa. Offline, dados so neste aparelho." />
+    <title>HomeStock: sua casa avisa antes de acabar</title>
+    <meta
+      name="description"
+      content="O HomeStock avisa quando algo da despensa está no fim ou perto de vencer e monta a lista de compras sozinho. Grátis, sem conta e funciona offline."
+    />
+    <meta property="og:title" content="HomeStock" />
+    <meta property="og:description" content="Sua casa avisa antes de acabar." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://luizfer1.github.io/HomeStock/" />
     <link rel="apple-touch-icon" href="/img/icons/icon_any_192.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/img/icons/icon_any_192.png" />
-    <title>HomeStock</title>
+    <script>
+      // Aberta como PWA instalado: iOS antigo instala a URL atual, nao o start_url.
+      // Quem instalou quer o app, nao a vitrine.
+      try {
+        if (window.matchMedia("(display-mode: standalone)").matches) location.replace("app/");
+      } catch {}
+    </script>
+    <script type="module" src="/src/landing/main.ts"></script>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+    <!-- secao:nav -->
+    <main id="conteudo" class="wrap" tabindex="-1">
+      <!-- secao:topo -->
+      <!-- secao:numeros -->
+      <!-- secao:como -->
+      <!-- secao:casa -->
+      <!-- secao:baixar -->
+      <!-- secao:cafe -->
+    </main>
+    <!-- secao:rodape -->
+    <!-- secao:dialogos -->
   </body>
 </html>

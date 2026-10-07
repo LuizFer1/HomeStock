@@ -60,6 +60,15 @@ export const FONT_LIMIT_BYTES = 80 * 1024;
  */
 export const SCANNER_LIMIT_BYTES = 500 * 1024;
 
+/**
+ * Teto da landing (index.html na raiz, artefatos `landing-*`): orcamento proprio,
+ * fora do teto do app. Sao paginas separadas, uma nunca carrega a outra; somar as
+ * duas faria a vitrine comer a folga do app. Historico:
+ *   25kb  — landing: HTML estatico, CSS a mao e TS sem framework (simulacao,
+ *           instalacao, dialogo do cafe), mais o chunk do QR Pix sob demanda.
+ */
+export const LANDING_LIMIT_BYTES = 25 * 1024;
+
 const MEASURED = /\.(js|css)$/;
 
 /**
@@ -88,11 +97,27 @@ export function isScannerArtifact(relativePath) {
 }
 
 /**
- * O que conta no teto do app: o shell sem o leitor sob demanda.
+ * Artefatos da landing. O prefixo vem da chave `landing` do input do build em
+ * vite.config.ts e do arquivo src/landing/landing-qr.ts; renomear la sem mudar
+ * aqui joga a landing de volta no teto do app.
+ * @param {string} relativePath
+ */
+export function isLandingArtifact(relativePath) {
+  const base = path.basename(relativePath).toLowerCase();
+  return base.startsWith("landing-") && isAppShellArtifact(relativePath);
+}
+
+/**
+ * O que conta no teto do app: o shell sem o leitor sob demanda e sem a landing
+ * (cada um tem orcamento proprio).
  * @param {string} relativePath
  */
 export function isAppArtifact(relativePath) {
-  return isAppShellArtifact(relativePath) && !isScannerArtifact(relativePath);
+  return (
+    isAppShellArtifact(relativePath) &&
+    !isScannerArtifact(relativePath) &&
+    !isLandingArtifact(relativePath)
+  );
 }
 
 /** @param {string} relativePath */
@@ -168,8 +193,14 @@ async function main() {
     SCANNER_LIMIT_BYTES,
     "SCANNER_LIMIT_BYTES",
   );
+  const landing = report(
+    "landing (gzip)",
+    await measureDist(dir, isLandingArtifact),
+    LANDING_LIMIT_BYTES,
+    "LANDING_LIMIT_BYTES",
+  );
   // Os relatorios saem todos antes de falhar: estourar um nao esconde o outro.
-  if (!app || !fonts || !scanner) process.exit(1);
+  if (!app || !fonts || !scanner || !landing) process.exit(1);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 
+import { resolve } from "node:path";
 import preact from "@preact/preset-vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
@@ -9,6 +10,11 @@ import { VitePWA } from "vite-plugin-pwa";
 // https://luizfer1.github.io/HomeStock/. Manifest, SW e icones saem daqui;
 // renomear o repositorio muda o caminho e esta constante tem que acompanhar.
 const BASE = "/HomeStock/";
+/** Onde o app mora. A landing fica na raiz do BASE. */
+export const APP_PATH = `${BASE}app/`;
+export const NAVIGATE_FALLBACK = `${APP_PATH}index.html`;
+/** Navegacao perdida fora do app nao pode abrir o app no lugar da landing. */
+export const NAVIGATE_FALLBACK_ALLOWLIST = [/\/app\//];
 
 export const MANIFEST_ICONS = [
   { src: "img/icons/icon_any_192.png", sizes: "192x192", type: "image/png", purpose: "any" },
@@ -26,6 +32,25 @@ export const MANIFEST_ICONS = [
     purpose: "maskable",
   },
 ];
+
+export const PWA_MANIFEST = {
+  name: "HomeStock",
+  short_name: "HomeStock",
+  description: "Despensa e lista de compras da casa. Offline, dados so neste aparelho.",
+  lang: "pt-BR",
+  dir: "ltr" as const,
+  // scope cobre a landing e o app: o beforeinstallprompt so dispara numa pagina
+  // dentro do escopo. id e start_url apontam para o app: o icone instalado nunca
+  // abre a vitrine, e mudar o id depois faria o navegador ver outro app.
+  id: APP_PATH,
+  start_url: APP_PATH,
+  scope: BASE,
+  display: "standalone" as const,
+  orientation: "portrait-primary" as const,
+  background_color: "#f5ead8",
+  theme_color: "#f5ead8",
+  icons: MANIFEST_ICONS,
+};
 
 /**
  * O leitor zxing (~430kb gzip) fica fora do precache: o Chrome Android tem leitor
@@ -57,26 +82,13 @@ export default defineConfig({
       // Script externo em dist/registerSW.js: workbox-window fora do chunk da SPA.
       injectRegister: "script",
       includeAssets: ["img/icons/*.png"],
-      manifest: {
-        name: "HomeStock",
-        short_name: "HomeStock",
-        description: "Despensa e lista de compras da casa. Offline, dados so neste aparelho.",
-        lang: "pt-BR",
-        dir: "ltr",
-        id: BASE,
-        start_url: BASE,
-        scope: BASE,
-        display: "standalone",
-        orientation: "portrait-primary",
-        background_color: "#f5ead8",
-        theme_color: "#f5ead8",
-        icons: MANIFEST_ICONS,
-      },
+      manifest: PWA_MANIFEST,
       workbox: {
         // Mesma origem do HomeFinance: o prefixo deixa o reset achar so os caches deste app.
         cacheId: "homestock",
         clientsClaim: true,
-        navigateFallback: `${BASE}index.html`,
+        navigateFallback: NAVIGATE_FALLBACK,
+        navigateFallbackAllowlist: NAVIGATE_FALLBACK_ALLOWLIST,
         globPatterns: ["**/*.{js,css,html,png,svg,ico,webp,woff2}"],
         globIgnores: SCANNER_GLOB_IGNORES,
         runtimeCaching: [SCANNER_CACHE],
@@ -88,6 +100,14 @@ export default defineConfig({
   build: {
     target: "es2022",
     assetsInlineLimit: 0,
+    rollupOptions: {
+      // A chave de cada entrada vira o prefixo dos arquivos (landing-*, app-*) e e
+      // por ele que o check-size separa os orcamentos.
+      input: {
+        landing: resolve(import.meta.dirname, "index.html"),
+        app: resolve(import.meta.dirname, "app/index.html"),
+      },
+    },
   },
   test: {
     environment: "happy-dom",

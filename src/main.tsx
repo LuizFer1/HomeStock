@@ -25,7 +25,7 @@ import { createUpdateStore, type SwContainer } from "./features/update/store";
 
 const root = document.getElementById("app");
 if (!root) {
-  throw new Error("Elemento #app nao encontrado em index.html");
+  throw new Error("Elemento #app nao encontrado em app/index.html");
 }
 
 // So referenciar `navigator.serviceWorker` ja lanca em contexto sandbox.

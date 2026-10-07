@@ -6,7 +6,9 @@ import {
   isAppArtifact,
   isAppShellArtifact,
   isFontArtifact,
+  isLandingArtifact,
   isScannerArtifact,
+  LANDING_LIMIT_BYTES,
   measureDist,
 } from "./check-size.mjs";
 
@@ -50,6 +52,45 @@ describe("check-size", () => {
       expect(scanner.files.map((f) => f.file).sort()).toEqual([
         path.join("assets", "zxing-reader-AbC_1.js"),
         path.join("assets", "zxing_reader-AbC1.wasm"),
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("a landing tem teto proprio de 25kb", () => {
+    expect(LANDING_LIMIT_BYTES).toBe(25 * 1024);
+  });
+
+  it("reconhece os artefatos da landing", () => {
+    expect(isLandingArtifact("assets/landing-AbC.js")).toBe(true);
+    expect(isLandingArtifact("assets/landing-AbC.css")).toBe(true);
+    expect(isLandingArtifact("assets/landing-qr-AbC.js")).toBe(true);
+    expect(isLandingArtifact("assets/app-AbC.js")).toBe(false);
+    expect(isLandingArtifact("assets/landing-AbC.woff2")).toBe(false);
+  });
+
+  it("o app nao mede a landing", () => {
+    expect(isAppArtifact("assets/landing-AbC.js")).toBe(false);
+    expect(isAppArtifact("assets/app-AbC.js")).toBe(true);
+  });
+
+  it("separa os orcamentos do app e da landing", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "check-size-"));
+    try {
+      await mkdir(path.join(dir, "assets"));
+      for (const name of ["app-1.js", "landing-1.js", "landing-1.css", "landing-qr-1.js"]) {
+        await writeFile(path.join(dir, "assets", name), "console.log(1)");
+      }
+
+      const app = await measureDist(dir);
+      expect(app.files.map((f) => f.file)).toEqual([path.join("assets", "app-1.js")]);
+
+      const landing = await measureDist(dir, isLandingArtifact);
+      expect(landing.files.map((f) => f.file).sort()).toEqual([
+        path.join("assets", "landing-1.css"),
+        path.join("assets", "landing-1.js"),
+        path.join("assets", "landing-qr-1.js"),
       ]);
     } finally {
       await rm(dir, { recursive: true, force: true });
