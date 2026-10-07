@@ -90,7 +90,8 @@ export function createRouter(history: HistoryLike, initial: Tab = "home"): Route
 /**
  * Volta so se a tela de cima ainda e a mesma de antes do `await`: o voltar do
  * sistema durante a gravacao ja desempilhou, e outro back sairia da tela de baixo.
+ * "scan" ainda nao esta no registro (entra com a pagina do scanner); a trava ja o aceita.
  */
-export function closeIfStill(router: Router, depth: number, kind: ScreenKind): void {
+export function closeIfStill(router: Router, depth: number, kind: ScreenKind | "scan"): void {
   if (router.stack.value.length === depth && router.top.value?.kind === kind) router.back();
 }

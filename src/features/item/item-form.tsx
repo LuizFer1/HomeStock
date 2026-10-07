@@ -24,13 +24,24 @@ import { CountStepper } from "../ui/count-stepper";
 import { ErrorText } from "../ui/error-text";
 import { IconButton } from "../ui/icon-button";
 import { TextField } from "../ui/text-field";
-import { initialOf } from "./labels";
+import { initialOf, saveLabel } from "./labels";
+import { PriceField } from "./price-field";
 
 export interface ItemFormProps {
   ctx: AppContext;
   mode: "create" | "edit";
   /** Obrigatorio no modo edit. */
   id?: Ulid;
+  /** Entre o cabecalho e a foto: o visor do scanner e a nota de codigo novo. */
+  top?: ComponentChildren;
+  /** Codigo lido pela camera: preenche o campo e leva o foco ao Nome. */
+  scannedEan?: string | null;
+  /** Codigo de 8 a 14 digitos confirmado no campo (change: blur ou Enter). */
+  onEanCommit?: (ean: string) => void;
+  /** Criar: "name" (padrao) ou "heading" (camera abrindo: o teclado cobriria o visor). */
+  initialFocus?: "name" | "heading";
+  /** `kind` da tela para o closeIfStill; padrao "item-new" ou "item-edit" pelo modo. */
+  screenKind?: "scan" | "item-new" | "item-edit";
 }
 
 interface FormValues {
@@ -142,7 +153,16 @@ function ChipGroup(props: {
 }
 
 /** Criar e editar item (markup 2d, linhas 334 a 378). */
-export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
+export function ItemForm({
+  ctx,
+  mode,
+  id,
+  top,
+  scannedEan,
+  onEanCommit,
+  initialFocus,
+  screenKind,
+}: ItemFormProps): JSX.Element | null {
   const { session, router, items, toast } = ctx;
   const data = session.data.value;
   const create = mode === "create";
@@ -171,6 +191,9 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
   const [expiresAt, setExpiresAt] = useState(initial.expiresAt);
   const [ean, setEan] = useState(initial.ean);
   const [photo, setPhoto] = useState(initial.photo);
+  // So no criar: a edicao nao mexe em preco.
+  const [priceText, setPriceText] = useState("");
+  const [priceMinor, setPriceMinor] = useState<number | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Conta cada falha: a mesma mensagem duas vezes ainda precisa mover o foco.
@@ -192,13 +215,22 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
   const unitId = useId();
   const expiresId = useId();
   const eanId = useId();
+  const priceId = useId();
 
   useEffect(() => {
     // Criar: o nome e o primeiro passo, o teclado ja abre nele. Editar: o titulo,
     // porque o botao que abriu a tela sumiu.
-    if (create) document.getElementById(nameId)?.focus();
+    // Com a camera abrindo, o teclado cobriria o visor: o foco vai ao titulo.
+    if (create && initialFocus !== "heading") document.getElementById(nameId)?.focus();
     else heading.current?.focus();
   }, []);
+
+  // Depois do foco inicial: codigo lido preenche o campo e o foco segue para o Nome.
+  useEffect(() => {
+    if (scannedEan === undefined || scannedEan === null || scannedEan === "") return;
+    setEan(scannedEan);
+    document.getElementById(nameId)?.focus();
+  }, [scannedEan]);
 
   useEffect(() => {
     if (failures === 0 || error === null) return;
@@ -210,7 +242,7 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
   if (!create && item === undefined) return <UnknownScreen onBack={router.back} />;
 
   const nameEmpty = name.trim() === "";
-  const kind = create ? "item-new" : "item-edit";
+  const kind = screenKind ?? (create ? "item-new" : "item-edit");
 
   async function pick(event: JSX.TargetedEvent<HTMLInputElement, Event>) {
     const input = event.currentTarget;
@@ -263,7 +295,7 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
     };
     try {
       if (create) {
-        const saved = await items.create(draft, qty);
+        const saved = await items.create(draft, qty, priceMinor);
         toast.show(`${saved.name} guardado`);
       } else if (id !== undefined) {
         await items.save(id, draft, qty === initial.qty ? null : qty);
@@ -284,6 +316,24 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
     ...locations.map((l) => ({ id: l.id, name: l.name })),
   ];
 
+  const eanField = (
+    <Field id={eanId} label="Código de barras">
+      <TextField
+        dense
+        id={eanId}
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={EAN_MAX}
+        value={ean}
+        onInput={(event) => setEan(event.currentTarget.value)}
+        onChange={(event) => {
+          const digits = event.currentTarget.value.replace(/\s+/g, "");
+          if (/^\d{8,14}$/.test(digits)) onEanCommit?.(digits);
+        }}
+      />
+    </Field>
+  );
+
   return (
     <main class="min-h-dvh bg-bg px-[22px] pt-11 pb-6">
       <div class="flex items-center justify-between">
@@ -294,6 +344,8 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
           <X size={20} strokeWidth={2.75} />
         </IconButton>
       </div>
+
+      {top}
 
       <div class="mt-3 flex items-center gap-3">
         <div class="grid size-24 shrink-0 place-items-center overflow-hidden rounded-[24px] bg-accent">
@@ -394,18 +446,22 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
               onInput={(event) => setExpiresAt(event.currentTarget.value)}
             />
           </Field>
-          <Field id={eanId} label="Código de barras">
-            <TextField
-              dense
-              id={eanId}
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={EAN_MAX}
-              value={ean}
-              onInput={(event) => setEan(event.currentTarget.value)}
-            />
-          </Field>
+          {create ? (
+            <Field id={priceId} label="Preço unitário">
+              <PriceField
+                id={priceId}
+                value={priceText}
+                onChange={(text, minor) => {
+                  setPriceText(text);
+                  setPriceMinor(minor);
+                }}
+              />
+            </Field>
+          ) : (
+            eanField
+          )}
         </div>
+        {create && eanField}
         <ChipGroup
           legend="Categoria"
           options={categoryOptions}
@@ -434,7 +490,7 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
         disabled={nameEmpty || busy || photoBusy}
         onClick={() => void submit()}
       >
-        {create ? ["Guardar", qty, unit.trim()].filter((part) => part !== "").join(" ") : "Salvar"}
+        {create ? saveLabel(qty, unit, priceMinor) : "Salvar"}
       </Button>
     </main>
   );

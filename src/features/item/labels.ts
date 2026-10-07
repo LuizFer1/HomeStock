@@ -133,3 +133,9 @@ const MONEY = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 export function formatMoney(minor: number): string {
   return MONEY.format(minor / 100);
 }
+
+/** CTA do criar e da reposicao: com preco "Guardar 3 · R$ 128,70" (markup), sem "Guardar 3 pct". */
+export function saveLabel(qty: number, unit: string, priceMinor: number | null): string {
+  if (priceMinor === null) return `Guardar ${qty} ${unit.trim()}`.trim();
+  return `Guardar ${qty} · ${formatMoney(qty * priceMinor)}`;
+}

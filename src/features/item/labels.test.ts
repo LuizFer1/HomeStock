@@ -14,6 +14,7 @@ import {
   initialOf,
   minimumChip,
   runsOutChip,
+  saveLabel,
   statusNote,
   stepperStatus,
 } from "./labels";
@@ -170,5 +171,13 @@ describe("formatMoney", () => {
     const plain = (text: string) => text.replaceAll(String.fromCharCode(160), " ");
     expect(plain(formatMoney(4290))).toBe("R$ 42,90");
     expect(plain(formatMoney(123456))).toBe("R$ 1.234,56");
+  });
+});
+
+describe("saveLabel", () => {
+  it("sem preco mostra a unidade, com preco o total", () => {
+    expect(saveLabel(3, "pct", null)).toBe("Guardar 3 pct");
+    expect(saveLabel(3, " ", null)).toBe("Guardar 3");
+    expect(saveLabel(3, "pct", 4290).replace(/ /g, " ")).toBe("Guardar 3 · R$ 128,70");
   });
 });

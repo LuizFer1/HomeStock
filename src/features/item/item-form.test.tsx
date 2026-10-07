@@ -12,7 +12,7 @@ import { cafe } from "../../domain/model/item.fake";
 import type { Session } from "../session/session";
 import { ANA, openTestSession } from "../session/test-session.fake";
 import { ToastView } from "../shell/toast-view";
-import { ItemForm } from "./item-form";
+import { ItemForm, type ItemFormProps } from "./item-form";
 
 afterEach(cleanup);
 
@@ -22,6 +22,7 @@ interface SetupOptions {
   qty?: number;
   prepare?: (session: Session, item: Item, db: HomeStockDb) => Promise<void>;
   overrides?: Partial<AppContext>;
+  props?: Partial<ItemFormProps>;
 }
 
 async function setup(options: SetupOptions = {}) {
@@ -33,16 +34,20 @@ async function setup(options: SetupOptions = {}) {
       : undefined;
   if (item !== undefined) await options.prepare?.(session, item, db);
   const { ctx, history } = testContext(session, options.overrides);
-  ctx.router.push(mode === "edit" ? { kind: "item-edit", id: item?.id } : { kind: "item-new" });
-  render(
+  if (options.props?.screenKind === "scan") ctx.router.push({ kind: "scan" });
+  else
+    ctx.router.push(mode === "edit" ? { kind: "item-edit", id: item?.id } : { kind: "item-new" });
+  const tree = (extra?: Partial<ItemFormProps>) => (
     <>
-      <ItemForm ctx={ctx} mode={mode} id={item?.id} />
+      <ItemForm ctx={ctx} mode={mode} id={item?.id} {...options.props} {...extra} />
       <ToastView store={ctx.toast} raised={false} />
-    </>,
+    </>
   );
+  const view = render(tree());
+  const rerender = (extra: Partial<ItemFormProps>) => view.rerender(tree(extra));
   const alive = () => session.data.value.items.filter((i) => isAlive(i));
   const moves = (id: string) => session.data.value.movements.filter((m) => m.itemId === id);
-  return { session, ctx, history, item, alive, moves };
+  return { session, ctx, history, item, alive, moves, rerender };
 }
 
 /** O toast; os `<output>` dos steppers tambem tem o papel status. */
@@ -200,6 +205,81 @@ describe("ItemForm criar", () => {
     fireEvent.click(button("Fechar"));
     await waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
     expect(alive()).toHaveLength(0);
+  });
+});
+
+describe("ItemForm preco e scanner", () => {
+  it("o preco unitario entra no CTA e grava restock mais Price", async () => {
+    const { session, history, alive, moves } = await setup();
+    type("Nome", "Arroz");
+    type("Preço unitário", "4290");
+    fireEvent.click(button("Aumentar Quantidade"));
+    fireEvent.click(button("Aumentar Quantidade"));
+    expect(button(/^Guardar 3/).textContent?.replace(/ /g, " ")).toBe("Guardar 3 · R$ 128,70");
+    fireEvent.click(button(/^Guardar 3/));
+    await waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
+    const [arroz] = alive();
+    expect(moves(arroz?.id ?? "").map((m) => [m.reason, m.delta])).toEqual([["restock", 3]]);
+    const prices = session.data.value.prices.filter((p) => p.itemId === arroz?.id);
+    expect(prices).toHaveLength(1);
+    expect(prices[0]).toMatchObject({ unitPriceMinor: 4290, qty: 3 });
+  });
+
+  it("sem preco o CTA fica na unidade e grava initial", async () => {
+    const { session, history, alive, moves } = await setup();
+    type("Nome", "Arroz");
+    expect(button("Guardar 1 un")).toBeTruthy();
+    type("Preço unitário", "4290");
+    expect(button(/·/)).toBeTruthy();
+    type("Preço unitário", "");
+    expect(button("Guardar 1 un")).toBeTruthy();
+    fireEvent.click(button("Guardar 1 un"));
+    await waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
+    const [arroz] = alive();
+    expect(moves(arroz?.id ?? "").map((m) => m.reason)).toEqual(["initial"]);
+    expect(session.data.value.prices).toHaveLength(0);
+  });
+
+  it("editar nao tem Preço unitário", async () => {
+    await setup({ mode: "edit" });
+    expect(screen.queryByLabelText("Preço unitário")).toBeNull();
+  });
+
+  it("top aparece antes do botao Camera", async () => {
+    await setup({ props: { top: <p>Visor</p> } });
+    const top = screen.getByText("Visor");
+    const camera = screen.getByText("Câmera");
+    expect(top.compareDocumentPosition(camera) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("scannedEan preenche o codigo e foca o Nome", async () => {
+    const { rerender } = await setup();
+    rerender({ scannedEan: "7891234567890" });
+    await waitFor(() => expect(field("Código de barras").value).toBe("7891234567890"));
+    expect(document.activeElement).toBe(field("Nome"));
+  });
+
+  it("onEanCommit avisa so com 8 a 14 digitos", async () => {
+    const onEanCommit = vi.fn();
+    await setup({ props: { onEanCommit } });
+    fireEvent.change(field("Código de barras"), { target: { value: "123" } });
+    expect(onEanCommit).not.toHaveBeenCalled();
+    fireEvent.change(field("Código de barras"), { target: { value: "789 1234 5678 90" } });
+    expect(onEanCommit).toHaveBeenCalledWith("7891234567890");
+  });
+
+  it("initialFocus heading foca o titulo", async () => {
+    await setup({ props: { initialFocus: "heading" } });
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 1, name: "Novo item" }),
+    );
+  });
+
+  it("screenKind scan volta com a pilha do scanner", async () => {
+    const { history } = await setup({ props: { screenKind: "scan" } });
+    type("Nome", "Arroz");
+    fireEvent.click(button("Guardar 1 un"));
+    await waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
   });
 });
 
