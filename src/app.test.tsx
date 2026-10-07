@@ -50,6 +50,13 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Estoque" })).toBeTruthy();
   });
 
+  it("a aba Estoque mostra a busca", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Estoque" }));
+    expect(await screen.findByRole("searchbox", { name: "Buscar item ou código" })).toBeTruthy();
+  });
+
   it("mostra o aviso de versao nova", async () => {
     const { session } = await openTestSession({ member: ANA });
     setup(session, true);

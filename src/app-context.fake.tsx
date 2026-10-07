@@ -1,10 +1,12 @@
 import { signal } from "@preact/signals";
 import { type Mock, vi } from "vitest";
 import type { AppContext } from "./app-context";
+import { createItemStore } from "./features/item/store";
 import type { Session } from "./features/session/session";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import { createToastStore } from "./features/shell/toast";
+import { createStockStore } from "./features/stock/store";
 import type { UpdateStore } from "./features/update/store";
 
 /** Aviso de versao parado: `ready` diz se ja ha versao nova esperando. */
@@ -36,6 +38,9 @@ export function testContext(
     update: fakeUpdate(),
     settings: createSettingsStore(session, { download: vi.fn(), today: () => "2026-10-06" }),
     toast: createToastStore(),
+    items: createItemStore(session),
+    stock: createStockStore(),
+    today: () => "2026-10-06",
     processAvatar: async () => "data:image/webp;base64,AAA",
     onLeave: async () => {},
     ...overrides,

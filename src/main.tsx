@@ -4,6 +4,7 @@ import { App } from "./app";
 import type { AppContext } from "./app-context";
 import { HomeStockDb } from "./data/db";
 import { cryptoRandomChunk } from "./domain/ids/ulid";
+import { createItemStore } from "./features/item/store";
 import { createOnboardingStore } from "./features/onboarding/store";
 import { AVATAR_PHOTO, processPhoto } from "./features/photo/photo";
 import { browserPhotoDeps } from "./features/photo/photo-canvas";
@@ -15,6 +16,7 @@ import { scopeResetDeps } from "./features/settings/reset-scope";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import { createToastStore } from "./features/shell/toast";
+import { createStockStore } from "./features/stock/store";
 import { createUpdateStore, type SwContainer } from "./features/update/store";
 
 const root = document.getElementById("app");
@@ -87,6 +89,9 @@ const ctx: AppContext = {
   update,
   settings,
   toast: createToastStore(),
+  items: createItemStore(session),
+  stock: createStockStore(),
+  today: () => localToday(),
   processAvatar: (file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO),
   onLeave: () =>
     resetDevice({

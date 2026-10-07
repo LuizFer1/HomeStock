@@ -5,6 +5,7 @@ import type { OnboardingStore } from "./features/onboarding/store";
 import type { Tab } from "./features/shell/route";
 import { TabBar } from "./features/shell/tab-bar";
 import { ToastView } from "./features/shell/toast-view";
+import { StockPage } from "./features/stock/stock-page";
 import { Avatar } from "./features/ui/avatar";
 import { UpdateBanner } from "./features/update/update-banner";
 import { renderScreen } from "./screens";
@@ -63,6 +64,9 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
         // A chave pela profundidade remonta a tela a cada pop: duas desconhecidas
         // seguidas reaproveitariam a instancia e o efeito de voltar nao rodaria.
         <Fragment key={router.stack.value.length}>{renderScreen(top, ctx)}</Fragment>
+      ) : tab === "stock" ? (
+        // A pagina traz o proprio `main` e le os sinais dentro dela.
+        <StockPage ctx={ctx} />
       ) : (
         <main class="no-scrollbar px-[22px] pt-11 pb-[110px]">
           {tab === "home" ? (
