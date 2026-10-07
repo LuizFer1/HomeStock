@@ -39,6 +39,11 @@ describe("normalizeListMarkPatch", () => {
     expect(normalizeListMarkPatch({ checked: 1, pinned: 0 })).toEqual({ checked: 1, pinned: 0 });
   });
 
+  it("so devolve os campos conhecidos", () => {
+    const untyped = { id: "X", itemId: "Y", deletedAt: "h", checked: 1, qty: 2 };
+    expect(normalizeListMarkPatch(untyped as never)).toEqual({ checked: 1, qty: 2 });
+  });
+
   it("recusa valores invalidos", () => {
     for (const qty of [0, 1000, 1.5]) {
       expect(() => normalizeListMarkPatch({ qty })).toThrow(/Quantidade da lista/);

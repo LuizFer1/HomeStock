@@ -656,6 +656,19 @@ describe("repor em lote", () => {
     expect((await db.listExtras.get(banana.id))?.deletedAt).toBeNull();
   });
 
+  it("undoCheckout nao revive marca de item que saiu da lista por outra escrita", async () => {
+    const { db, repo, coffee } = await market();
+    const receipt = await repo.checkout({
+      items: [{ itemId: coffee.id, qty: 2, unitPriceMinor: null }],
+      extraIds: [],
+    });
+    // 1 + 2 do repor = 3; o ajuste para 4 grava +1, que fica depois do desfazer.
+    await repo.adjustTo(coffee.id, 4);
+    await repo.undoCheckout(receipt);
+    expect(quantityOf(coffee.id, await db.movements.toArray())).toBe(2);
+    expect((await db.listMarks.get(listMarkId(coffee.id)))?.deletedAt).not.toBeNull();
+  });
+
   it("undoCheckout devolve marcas, pedidos e a soma", async () => {
     const { db, repo, coffee, det, banana } = await market();
     const receipt = await repo.checkout({

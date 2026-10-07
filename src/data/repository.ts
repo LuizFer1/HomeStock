@@ -504,7 +504,7 @@ export async function openRepository(deps: RepositoryDeps) {
 
     /** Desfaz o repor: movimentos e precos saem; marcas e pedidos ainda apagados voltam. */
     async undoCheckout(receipt: CheckoutReceipt): Promise<void> {
-      const tables = [db.movements, db.prices, db.listMarks, db.listExtras, db.meta];
+      const tables = [db.items, db.movements, db.prices, db.listMarks, db.listExtras, db.meta];
       await db.transaction("rw", tables, async () => {
         const s = await stamp();
         for (const id of receipt.movementIds) await undoMovementRows(id, s);
@@ -512,6 +512,9 @@ export async function openRepository(deps: RepositoryDeps) {
           const mark = await db.listMarks.get(id);
           if (mark !== undefined && mark.deletedAt !== null) {
             await db.listMarks.put(touched(mark, s, { deletedAt: null }));
+            // Outra escrita depois do repor pode ter tirado o item da lista: marca
+            // revivida ai renasceria na proxima vez que ele ficasse abaixo do minimo.
+            await clearStaleMark(mark.itemId, s);
           }
         }
         for (const id of receipt.extraIds) {

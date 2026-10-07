@@ -42,10 +42,14 @@ export function normalizeListMarkPatch(patch: ListMarkPatch): ListMarkPatch {
   assertFlag(patch.pinned, "pinned");
   // Mesmas regras do pedido avulso; undefined (ausente) vale como null aqui.
   assertExtraNumbers(patch.qty ?? null, patch.priceMinor ?? null);
-  // undefined explicito significa "inalterado": a chave sai para o spread nao apagar o campo.
-  return Object.fromEntries(
-    Object.entries(patch).filter(([, value]) => value !== undefined),
-  ) as ListMarkPatch;
+  // So os campos do patch: chave estranha (id, itemId, deletedAt) nao chega ao spread
+  // da linha, e undefined explicito significa "inalterado", nao "apague o campo".
+  const clean: ListMarkPatch = {};
+  if (patch.checked !== undefined) clean.checked = patch.checked;
+  if (patch.qty !== undefined) clean.qty = patch.qty;
+  if (patch.priceMinor !== undefined) clean.priceMinor = patch.priceMinor;
+  if (patch.pinned !== undefined) clean.pinned = patch.pinned;
+  return clean;
 }
 
 /**

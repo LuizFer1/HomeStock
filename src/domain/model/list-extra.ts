@@ -13,8 +13,13 @@ export interface ListExtra extends BaseRow {
   /** Preco unitario. */
   priceMinor: number | null;
   checked: 0 | 1;
-  /** Quem pediu, gravado na criacao. Linha antiga (sem o campo): use authorId. */
-  requestedBy: Ulid | null;
+  /** Quem pediu, gravado na criacao. Linha antiga nao tem o campo: leia por `requesterOf`. */
+  requestedBy?: Ulid | null;
+}
+
+/** Quem pediu. authorId muda a cada escrita, entao so serve para a linha antiga sem o campo. */
+export function requesterOf(extra: ListExtra): Ulid | null {
+  return extra.requestedBy ?? extra.authorId;
 }
 
 export const MAX_EXTRA_NAME = 60;
