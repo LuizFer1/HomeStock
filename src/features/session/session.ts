@@ -42,6 +42,7 @@ export const EMPTY_SNAPSHOT: Snapshot = {
   prefs: [],
   listExtras: [],
   listMarks: [],
+  alertStates: [],
   movements: [],
   prices: [],
 };

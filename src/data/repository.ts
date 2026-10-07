@@ -3,6 +3,7 @@ import { compareHlc } from "../domain/clock/hlc";
 import { createRowClock, type RowClock, type Stamp } from "../domain/clock/row-clock";
 import { seedCategories, seedLocations } from "../domain/defaults/seeds";
 import type { RandomChunk, Ulid } from "../domain/ids/ulid";
+import { type AlertState, alertStateId, normalizeAlertKey } from "../domain/model/alert-state";
 import { type BaseRow, type Draft, isAlive } from "../domain/model/base";
 import {
   type Category,
@@ -51,6 +52,7 @@ export interface Snapshot {
   prefs: PrefRow[];
   listExtras: ListExtra[];
   listMarks: ListMark[];
+  alertStates: AlertState[];
   movements: Movement[];
   prices: Price[];
 }
@@ -345,6 +347,7 @@ export async function openRepository(deps: RepositoryDeps) {
           db.prefs,
           db.listExtras,
           db.listMarks,
+          db.alertStates,
           db.movements,
           db.prices,
         ],
@@ -356,6 +359,7 @@ export async function openRepository(deps: RepositoryDeps) {
           prefs: await db.prefs.toArray(),
           listExtras: await db.listExtras.toArray(),
           listMarks: await db.listMarks.toArray(),
+          alertStates: await db.alertStates.toArray(),
           movements: await db.movements.toArray(),
           prices: await db.prices.toArray(),
         }),
@@ -720,6 +724,48 @@ export async function openRepository(deps: RepositoryDeps) {
             : touched(existing, s, { value: clean, deletedAt: null });
         await db.prefs.put(row);
         return row;
+      });
+    },
+
+    /**
+     * Resolve as chaves numa transacao e um carimbo. Linha viva fica como esta
+     * (resolver duas vezes nao gera escrita nem HLC novo); apagada revive; ausente nasce.
+     */
+    async resolveAlerts(keys: readonly string[]): Promise<AlertState[]> {
+      // Valida antes de abrir a transacao: chave ruim rejeita sem gravar nada.
+      const clean = [...new Set(keys.map(normalizeAlertKey))];
+      if (clean.length === 0) return [];
+      return db.transaction("rw", db.alertStates, db.meta, async () => {
+        const rows = await Promise.all(clean.map((key) => db.alertStates.get(alertStateId(key))));
+        if (rows.every(isAlive)) return [];
+        const s = await stamp();
+        const written: AlertState[] = [];
+        clean.forEach((key, i) => {
+          const row = rows[i];
+          if (row?.deletedAt === null) return;
+          written.push(
+            row === undefined
+              ? { ...fresh(s), id: alertStateId(key), key }
+              : touched(row, s, { deletedAt: null }),
+          );
+        });
+        await db.alertStates.bulkPut(written);
+        return written;
+      });
+    },
+
+    /** Reabre (desfazer): so as linhas vivas recebem deletedAt. */
+    async reopenAlerts(keys: readonly string[]): Promise<AlertState[]> {
+      const clean = [...new Set(keys.map(normalizeAlertKey))];
+      if (clean.length === 0) return [];
+      return db.transaction("rw", db.alertStates, db.meta, async () => {
+        const rows = await Promise.all(clean.map((key) => db.alertStates.get(alertStateId(key))));
+        const alive = rows.filter(isAlive);
+        if (alive.length === 0) return [];
+        const s = await stamp();
+        const written = alive.map((row) => touched(row, s, { deletedAt: s.hlc }));
+        await db.alertStates.bulkPut(written);
+        return written;
       });
     },
 

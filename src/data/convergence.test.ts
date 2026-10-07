@@ -143,4 +143,23 @@ describe("convergencia entre dois aparelhos", () => {
     await send(a.db, b.db, b.repo);
     expect((await b.db.listMarks.get(listMarkId(item.id)))?.deletedAt).not.toBeNull();
   });
+  it("dois aparelhos resolvendo o mesmo alerta ficam com uma linha", async () => {
+    const now = testClock();
+    const a = await device(1, now);
+    const b = await device(2, now);
+
+    await a.repo.resolveAlerts(["low:X:start"]);
+    await b.repo.resolveAlerts(["low:X:start"]);
+
+    await send(a.db, b.db, b.repo);
+    await send(b.db, a.db, a.repo);
+    await send(a.db, b.db, b.repo);
+    for (const { db } of [a, b]) expect(await db.alertStates.count()).toBe(1);
+
+    await a.repo.reopenAlerts(["low:X:start"]);
+    await send(a.db, b.db, b.repo);
+    const rows = await b.db.alertStates.toArray();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.deletedAt).not.toBeNull();
+  });
 });

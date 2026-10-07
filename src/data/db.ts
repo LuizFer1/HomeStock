@@ -1,4 +1,5 @@
 import Dexie, { type Table } from "dexie";
+import type { AlertState } from "../domain/model/alert-state";
 import type { Category, Item, Location } from "../domain/model/item";
 import type { ListExtra } from "../domain/model/list-extra";
 import type { ListMark } from "../domain/model/list-mark";
@@ -31,6 +32,7 @@ export class HomeStockDb extends Dexie {
   readonly listMarks: Table<ListMark, string>;
   readonly movements: Table<Movement, string>;
   readonly prices: Table<Price, string>;
+  readonly alertStates: Table<AlertState, string>;
   readonly meta: Table<MetaRow, string>;
 
   constructor(name = "homestock") {
@@ -49,6 +51,8 @@ export class HomeStockDb extends Dexie {
     this.version(2).stores({ prefs: "id, dirty" });
     // Aditiva, como a v2.
     this.version(3).stores({ listMarks: "id, itemId, dirty" });
+    // Aditiva, como a v2 e a v3.
+    this.version(4).stores({ alertStates: "id, dirty" });
     this.items = this.table("items");
     this.categories = this.table("categories");
     this.locations = this.table("locations");
@@ -58,6 +62,7 @@ export class HomeStockDb extends Dexie {
     this.listMarks = this.table("listMarks");
     this.movements = this.table("movements");
     this.prices = this.table("prices");
+    this.alertStates = this.table("alertStates");
     this.meta = this.table("meta");
   }
 }
@@ -73,6 +78,7 @@ export const SYNCED_TABLES = [
   "prices",
   "listExtras",
   "listMarks",
+  "alertStates",
 ] as const;
 
 export type SyncedTable = (typeof SYNCED_TABLES)[number];

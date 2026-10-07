@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compareHlc } from "../domain/clock/hlc";
 import { DEFAULT_CATEGORY_ID, SEED_HLC } from "../domain/defaults/seeds";
+import { alertStateId } from "../domain/model/alert-state";
 import { listMarkId } from "../domain/model/list-mark";
 import { prefId, prefsFrom } from "../domain/model/prefs";
 import { quantityOf } from "../domain/projections/stock";
@@ -831,5 +832,72 @@ describe("repor em lote", () => {
     expect(await db.listExtras.get(banana.id)).toMatchObject({ deletedAt: null, checked: 1 });
     expect(quantityOf(coffee.id, await db.movements.toArray())).toBe(1);
     expect(quantityOf(det.id, await db.movements.toArray())).toBe(0);
+  });
+});
+
+describe("alertas resolvidos", () => {
+  it("resolveAlerts cria a linha de id estavel", async () => {
+    const { db, repo } = await openTestRepository();
+    const [row] = await repo.resolveAlerts(["low:X:start"]);
+    expect(row).toMatchObject({
+      id: alertStateId("low:X:start"),
+      key: "low:X:start",
+      deletedAt: null,
+      dirty: 1,
+      authorId: TEST_MEMBER_ID,
+    });
+    expect(await db.alertStates.count()).toBe(1);
+  });
+
+  it("resolver de novo nao grava nada", async () => {
+    const { db, repo } = await openTestRepository();
+    const [first] = await repo.resolveAlerts(["low:X:start"]);
+    expect(await repo.resolveAlerts(["low:X:start"])).toEqual([]);
+    expect((await db.alertStates.get(alertStateId("low:X:start")))?.updatedAt).toBe(
+      first?.updatedAt,
+    );
+  });
+
+  it("reabrir carimba deletedAt, so uma vez, e resolver revive", async () => {
+    const { db, repo } = await openTestRepository();
+    const [first] = await repo.resolveAlerts(["low:X:start"]);
+    const [closed] = await repo.reopenAlerts(["low:X:start"]);
+    expect(closed?.deletedAt).toBe(closed?.updatedAt);
+    expect(await repo.reopenAlerts(["low:X:start"])).toEqual([]);
+    const [again] = await repo.resolveAlerts(["low:X:start"]);
+    expect(again?.deletedAt).toBeNull();
+    expect(compareHlc(again?.updatedAt ?? "", first?.updatedAt ?? "")).toBe(1);
+    expect(await db.alertStates.count()).toBe(1);
+  });
+
+  it("varias chaves levam o mesmo carimbo e repetidas valem uma", async () => {
+    const { db, repo } = await openTestRepository();
+    await repo.resolveAlerts(["act:A", "act:B", "act:A"]);
+    const rows = await db.alertStates.toArray();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.updatedAt).toBe(rows[1]?.updatedAt);
+  });
+
+  it("chave invalida rejeita sem gravar as outras; lista vazia nao faz nada", async () => {
+    const { db, repo } = await openTestRepository();
+    await expect(repo.resolveAlerts(["act:A", "x y"])).rejects.toThrow();
+    expect(await db.alertStates.count()).toBe(0);
+    expect(await repo.resolveAlerts([])).toEqual([]);
+    expect(await repo.reopenAlerts([])).toEqual([]);
+  });
+
+  it("reabrir chave que nunca foi resolvida nao cria linha", async () => {
+    const { db, repo } = await openTestRepository();
+    expect(await repo.reopenAlerts(["act:nunca"])).toEqual([]);
+    expect(await db.alertStates.count()).toBe(0);
+  });
+
+  it("snapshot traz as linhas apagadas tambem", async () => {
+    const { repo } = await openTestRepository();
+    await repo.resolveAlerts(["act:A"]);
+    await repo.reopenAlerts(["act:A"]);
+    const rows = (await repo.snapshot()).alertStates;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.deletedAt).not.toBeNull();
   });
 });
