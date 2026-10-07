@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compareHlc } from "../domain/clock/hlc";
 import { DEFAULT_CATEGORY_ID, SEED_HLC } from "../domain/defaults/seeds";
+import { listMarkId } from "../domain/model/list-mark";
 import { prefId, prefsFrom } from "../domain/model/prefs";
 import { quantityOf } from "../domain/projections/stock";
 import { lastPriceOf } from "../domain/projections/value";
@@ -397,5 +398,289 @@ describe("preco no cadastro e validade na reposicao", () => {
     const { movement } = await repo.restock(item.id, 1, undefined, "2027-03-01");
     await repo.undoMovement(movement.id);
     expect((await db.items.get(item.id))?.expiresAt).toBe("2027-03-01");
+  });
+});
+
+describe("marca da lista", () => {
+  it("markItem cria a linha de id estavel e atualiza a mesma", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    const first = await repo.markItem(item.id, { checked: 1 });
+    expect(first).toMatchObject({
+      id: listMarkId(item.id),
+      itemId: item.id,
+      checked: 1,
+      qty: null,
+      priceMinor: null,
+      pinned: 0,
+      pinnedBy: null,
+      dirty: 1,
+      deletedAt: null,
+    });
+    const second = await repo.markItem(item.id, { qty: 2 });
+    expect(second).toMatchObject({ id: first.id, checked: 1, qty: 2 });
+    expect(await db.listMarks.count()).toBe(1);
+  });
+
+  it("markItem de item apagado rejeita sem gravar", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.deleteItem(item.id);
+    await expect(repo.markItem(item.id, { checked: 1 })).rejects.toThrow(/nao existe/);
+    await expect(repo.markItem(item.id, { qty: 0 })).rejects.toThrow();
+    expect(await db.listMarks.count()).toBe(0);
+  });
+
+  it("fixar grava quem fixou; desafixar limpa", async () => {
+    const { repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 5);
+    expect((await repo.markItem(item.id, { pinned: 1 })).pinnedBy).toBe(TEST_MEMBER_ID);
+    expect((await repo.markItem(item.id, { checked: 1 })).pinnedBy).toBe(TEST_MEMBER_ID);
+    expect((await repo.markItem(item.id, { pinned: 0 })).pinnedBy).toBeNull();
+  });
+
+  it("toggleItemMark inverte o valor do banco na mesma linha", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    expect((await repo.toggleItemMark(item.id)).checked).toBe(1);
+    expect((await repo.toggleItemMark(item.id)).checked).toBe(0);
+    expect(await db.listMarks.count()).toBe(1);
+  });
+
+  it("linha apagada revive com os padroes", async () => {
+    const { repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { checked: 1, qty: 5, priceMinor: 990 });
+    await repo.unpinItem(item.id);
+    const revived = await repo.markItem(item.id, { pinned: 1 });
+    expect(revived).toMatchObject({
+      checked: 0,
+      qty: null,
+      priceMinor: null,
+      pinned: 1,
+      deletedAt: null,
+    });
+  });
+
+  it("restoreItemMark devolve os campos que a marca tinha", async () => {
+    const { repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { checked: 1, qty: 5, priceMinor: 990 });
+    expect((await repo.unpinItem(item.id)).deletedAt).not.toBeNull();
+    const restored = await repo.restoreItemMark(item.id);
+    expect(restored).toMatchObject({ checked: 1, qty: 5, priceMinor: 990, deletedAt: null });
+  });
+
+  it("restock apaga a marca no mesmo carimbo", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { checked: 1, pinned: 1 });
+    const { movement } = await repo.restock(item.id, 1);
+    expect((await db.listMarks.get(listMarkId(item.id)))?.deletedAt).toBe(movement.updatedAt);
+  });
+
+  it("restock sem marca nao grava em listMarks", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.restock(item.id, 1);
+    expect(await db.listMarks.count()).toBe(0);
+  });
+
+  it("adjustTo apaga a marca nao fixada quando o item sai da lista", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { checked: 1 });
+    await repo.adjustTo(item.id, 1);
+    expect((await db.listMarks.get(listMarkId(item.id)))?.deletedAt).toBeNull();
+    const movement = await repo.adjustTo(item.id, 2);
+    expect((await db.listMarks.get(listMarkId(item.id)))?.deletedAt).toBe(movement?.updatedAt);
+  });
+
+  it("adjustTo mantem a marca fixada", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { checked: 1, pinned: 1 });
+    await repo.adjustTo(item.id, 5);
+    expect((await db.listMarks.get(listMarkId(item.id)))?.deletedAt).toBeNull();
+  });
+
+  it("updateItem apaga a marca nao fixada so quando o item sai da lista", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 1);
+    await repo.markItem(item.id, { checked: 1 });
+    await repo.updateItem(item.id, { name: "Café" });
+    expect((await db.listMarks.get(listMarkId(item.id)))?.deletedAt).toBeNull();
+    const next = await repo.updateItem(item.id, { min: 0 });
+    expect((await db.listMarks.get(listMarkId(item.id)))?.deletedAt).toBe(next.updatedAt);
+  });
+
+  it("undoMovement que devolve o item ao minimo apaga a marca nao fixada", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 2);
+    const use = await repo.useItem(item.id);
+    await repo.markItem(item.id, { checked: 1 });
+    await repo.undoMovement(use.id);
+    expect((await db.listMarks.get(listMarkId(item.id)))?.deletedAt).not.toBeNull();
+    expect(quantityOf(item.id, await db.movements.toArray())).toBe(2);
+  });
+});
+
+describe("pedidos da casa validados", () => {
+  it("addListExtra apara o nome e grava quem pediu", async () => {
+    const { repo } = await openTestRepository();
+    const extra = await repo.addListExtra("  Banana ");
+    expect(extra).toMatchObject({
+      name: "Banana",
+      requestedBy: TEST_MEMBER_ID,
+      checked: 0,
+      qty: null,
+      priceMinor: null,
+    });
+  });
+
+  it("addListExtra recusa nome vazio e quantidade invalida sem gravar", async () => {
+    const { db, repo } = await openTestRepository();
+    await expect(repo.addListExtra("")).rejects.toThrow("Dê um nome ao pedido.");
+    await expect(repo.addListExtra("Pão", 0)).rejects.toThrow();
+    await expect(repo.addListExtra("Pão", 1, -1)).rejects.toThrow();
+    expect(await db.listExtras.count()).toBe(0);
+  });
+
+  it("updateListExtra grava e recusa pedido apagado", async () => {
+    const { repo } = await openTestRepository();
+    const extra = await repo.addListExtra("Banana");
+    const next = await repo.updateListExtra(extra.id, { qty: 2, priceMinor: 799 });
+    expect(next).toMatchObject({ qty: 2, priceMinor: 799, name: "Banana" });
+    expect(compareHlc(next.updatedAt, extra.updatedAt)).toBe(1);
+    await expect(repo.updateListExtra(extra.id, { qty: 0 })).rejects.toThrow();
+    await repo.removeListExtra(extra.id);
+    await expect(repo.updateListExtra(extra.id, { qty: 3 })).rejects.toThrow(/nao existe/);
+  });
+
+  it("updateListExtra trata undefined como inalterado", async () => {
+    const { repo } = await openTestRepository();
+    const extra = await repo.addListExtra("Banana", 2, 799);
+    expect(await repo.updateListExtra(extra.id, { priceMinor: null })).toMatchObject({
+      qty: 2,
+      priceMinor: null,
+    });
+  });
+
+  it("removeListExtra e restoreListExtra devolvem o pedido", async () => {
+    const { repo } = await openTestRepository();
+    const extra = await repo.addListExtra("Banana");
+    await repo.removeListExtra(extra.id);
+    expect((await repo.restoreListExtra(extra.id)).deletedAt).toBeNull();
+  });
+});
+
+describe("repor em lote", () => {
+  async function market() {
+    const ctx = await openTestRepository();
+    const { repo } = ctx;
+    const coffee = await repo.createItem(cafe(), 1);
+    const det = await repo.createItem(cafe({ name: "Detergente", ean: null }));
+    await repo.markItem(coffee.id, { checked: 1, qty: 2 });
+    await repo.markItem(det.id, { checked: 1 });
+    const banana = await repo.addListExtra("Banana");
+    await repo.toggleListExtra(banana.id);
+    return { ...ctx, coffee, det, banana };
+  }
+
+  it("checkout repoe, grava o preco digitado e limpa marcas e pedidos", async () => {
+    const { db, repo, coffee, det, banana } = await market();
+    const receipt = await repo.checkout({
+      items: [
+        { itemId: coffee.id, qty: 2, unitPriceMinor: 4290 },
+        { itemId: det.id, qty: 3, unitPriceMinor: null },
+      ],
+      extraIds: [banana.id],
+    });
+    const restocks = (await db.movements.toArray()).filter((m) => m.reason === "restock");
+    expect(restocks.map((m) => [m.itemId, m.delta])).toEqual([
+      [coffee.id, 2],
+      [det.id, 3],
+    ]);
+    expect(restocks[0]?.updatedAt).toBe(restocks[1]?.updatedAt);
+    const prices = await db.prices.toArray();
+    expect(prices).toHaveLength(1);
+    expect(prices[0]).toMatchObject({
+      itemId: coffee.id,
+      unitPriceMinor: 4290,
+      qty: 2,
+      on: "2026-10-06",
+      movementId: restocks[0]?.id,
+    });
+    const stamp = restocks[0]?.updatedAt;
+    expect((await db.listMarks.get(listMarkId(coffee.id)))?.deletedAt).toBe(stamp);
+    expect((await db.listMarks.get(listMarkId(det.id)))?.deletedAt).toBe(stamp);
+    expect((await db.listExtras.get(banana.id))?.deletedAt).toBe(stamp);
+    expect(receipt.movementIds).toHaveLength(2);
+    expect(receipt.markIds).toEqual([listMarkId(coffee.id), listMarkId(det.id)]);
+    expect(receipt.extraIds).toEqual([banana.id]);
+  });
+
+  it("checkout pula item apagado no meio e grava o resto", async () => {
+    const { db, repo, coffee, det } = await market();
+    await repo.deleteItem(det.id);
+    const receipt = await repo.checkout({
+      items: [
+        { itemId: coffee.id, qty: 2, unitPriceMinor: null },
+        { itemId: det.id, qty: 3, unitPriceMinor: null },
+      ],
+      extraIds: [],
+    });
+    expect(receipt.movementIds).toHaveLength(1);
+    const forDet = (await db.movements.toArray()).filter((m) => m.itemId === det.id);
+    expect(forDet).toHaveLength(0);
+    expect(quantityOf(coffee.id, await db.movements.toArray())).toBe(3);
+  });
+
+  it("checkout com quantidade invalida rejeita sem gravar nada", async () => {
+    const { db, repo, coffee, det, banana } = await market();
+    const before = await db.movements.count();
+    await expect(
+      repo.checkout({
+        items: [
+          { itemId: coffee.id, qty: 2, unitPriceMinor: null },
+          { itemId: det.id, qty: 0, unitPriceMinor: null },
+        ],
+        extraIds: [banana.id],
+      }),
+    ).rejects.toThrow();
+    await expect(
+      repo.checkout({ items: [{ itemId: coffee.id, qty: 1, unitPriceMinor: -1 }], extraIds: [] }),
+    ).rejects.toThrow();
+    expect(await db.movements.count()).toBe(before);
+    expect((await db.listMarks.get(listMarkId(coffee.id)))?.deletedAt).toBeNull();
+    expect((await db.listExtras.get(banana.id))?.deletedAt).toBeNull();
+  });
+
+  it("undoCheckout devolve marcas, pedidos e a soma", async () => {
+    const { db, repo, coffee, det, banana } = await market();
+    const receipt = await repo.checkout({
+      items: [
+        { itemId: coffee.id, qty: 2, unitPriceMinor: 4290 },
+        { itemId: det.id, qty: 3, unitPriceMinor: null },
+      ],
+      extraIds: [banana.id],
+    });
+    await repo.undoCheckout(receipt);
+    for (const id of receipt.movementIds) {
+      expect((await db.movements.get(id))?.deletedAt).not.toBeNull();
+    }
+    expect((await db.prices.toArray())[0]?.deletedAt).not.toBeNull();
+    expect(await db.listMarks.get(listMarkId(coffee.id))).toMatchObject({
+      deletedAt: null,
+      checked: 1,
+      qty: 2,
+    });
+    expect(await db.listMarks.get(listMarkId(det.id))).toMatchObject({
+      deletedAt: null,
+      checked: 1,
+    });
+    expect(await db.listExtras.get(banana.id)).toMatchObject({ deletedAt: null, checked: 1 });
+    expect(quantityOf(coffee.id, await db.movements.toArray())).toBe(1);
+    expect(quantityOf(det.id, await db.movements.toArray())).toBe(0);
   });
 });

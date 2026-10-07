@@ -10,7 +10,14 @@ import {
   type Location,
   normalizeItemDraft,
 } from "../domain/model/item";
-import type { ListExtra } from "../domain/model/list-extra";
+import { assertExtraNumbers, type ListExtra, normalizeExtraName } from "../domain/model/list-extra";
+import {
+  type ListMark,
+  type ListMarkPatch,
+  listMarkId,
+  markIsStale,
+  normalizeListMarkPatch,
+} from "../domain/model/list-mark";
 import { type Member, type MemberDraft, normalizeMemberDraft } from "../domain/model/member";
 import type { Movement, MovementReason, Price } from "../domain/model/movement";
 import { normalizePlaceName } from "../domain/model/place-name";
@@ -42,8 +49,23 @@ export interface Snapshot {
   members: Member[];
   prefs: PrefRow[];
   listExtras: ListExtra[];
+  listMarks: ListMark[];
   movements: Movement[];
   prices: Price[];
+}
+
+export interface CheckoutLine {
+  itemId: Ulid;
+  qty: number;
+  /** So o preco digitado; a estimativa pelo ultimo preco nunca e gravada. */
+  unitPriceMinor: number | null;
+}
+
+export interface CheckoutReceipt {
+  movementIds: Ulid[];
+  /** Marcas apagadas pelo repor, para o desfazer devolver. */
+  markIds: Ulid[];
+  extraIds: Ulid[];
 }
 
 export type ItemDraft = Draft<Item>;
@@ -191,6 +213,77 @@ export async function openRepository(deps: RepositoryDeps) {
     });
   }
 
+  /** Linha da marca pronta para o patch: viva como esta, ou revivida com os padroes. */
+  async function markBase(itemId: Ulid, s: Stamp): Promise<ListMark> {
+    const row = await db.listMarks.get(listMarkId(itemId));
+    if (isAlive(row)) return row;
+    // A linha de id estavel e reaproveitada; o que ela guardava da ida anterior ao mercado nao vale mais.
+    return {
+      ...(row ?? fresh(s)),
+      id: listMarkId(itemId),
+      itemId,
+      checked: 0,
+      qty: null,
+      priceMinor: null,
+      pinned: 0,
+      pinnedBy: null,
+      deletedAt: null,
+    };
+  }
+
+  /** Upsert da marca do item vivo; `patchOf` recebe a linha lida no banco. */
+  async function writeMark(
+    itemId: Ulid,
+    patchOf: (base: ListMark) => ListMarkPatch,
+  ): Promise<ListMark> {
+    return db.transaction("rw", db.items, db.listMarks, db.meta, async () => {
+      await aliveItem(itemId);
+      const s = await stamp();
+      const base = await markBase(itemId, s);
+      const patch = patchOf(base);
+      const pinnedBy =
+        patch.pinned === 1 ? deps.currentMemberId() : patch.pinned === 0 ? null : base.pinnedBy;
+      const next = touched(base, s, { ...patch, pinnedBy, deletedAt: null });
+      await db.listMarks.put(next);
+      return next;
+    });
+  }
+
+  /** Apaga a marca viva do item; devolve a linha apagada ou null. */
+  async function clearMark(itemId: Ulid, s: Stamp): Promise<ListMark | null> {
+    const row = await db.listMarks.get(listMarkId(itemId));
+    if (!isAlive(row)) return null;
+    const next = touched(row, s, { deletedAt: s.hlc });
+    await db.listMarks.put(next);
+    return next;
+  }
+
+  /** Apaga a marca nao fixada se o item vivo ja saiu da lista (markIsStale). */
+  async function clearStaleMark(itemId: Ulid, s: Stamp): Promise<void> {
+    const mark = await db.listMarks.get(listMarkId(itemId));
+    if (!isAlive(mark)) return;
+    const item = await db.items.get(itemId);
+    if (!isAlive(item)) return;
+    // Soma lida dentro da transacao, ja com o movimento que o comando acabou de gravar.
+    if (markIsStale(item, await currentQty(itemId), mark)) {
+      await db.listMarks.put(touched(mark, s, { deletedAt: s.hlc }));
+    }
+  }
+
+  /** Apaga o movimento e o preco ligado a ele; devolve o movimento, ou null se ja estava morto. */
+  async function undoMovementRows(movementId: Ulid, s: Stamp): Promise<Movement | null> {
+    const movement = await db.movements.get(movementId);
+    if (!isAlive(movement)) return null;
+    await db.movements.put(touched(movement, s, { deletedAt: s.hlc }));
+    const prices = await db.prices.where("itemId").equals(movement.itemId).toArray();
+    for (const price of prices) {
+      if (price.movementId === movementId && isAlive(price)) {
+        await db.prices.put(touched(price, s, { deletedAt: s.hlc }));
+      }
+    }
+    return movement;
+  }
+
   return {
     deviceId: clock.deviceId,
     /** Para o sync: o relogio salta ao receber uma linha de fora. */
@@ -206,6 +299,7 @@ export async function openRepository(deps: RepositoryDeps) {
           db.members,
           db.prefs,
           db.listExtras,
+          db.listMarks,
           db.movements,
           db.prices,
         ],
@@ -216,6 +310,7 @@ export async function openRepository(deps: RepositoryDeps) {
           members: await db.members.toArray(),
           prefs: await db.prefs.toArray(),
           listExtras: await db.listExtras.toArray(),
+          listMarks: await db.listMarks.toArray(),
           movements: await db.movements.toArray(),
           prices: await db.prices.toArray(),
         }),
@@ -251,15 +346,18 @@ export async function openRepository(deps: RepositoryDeps) {
     /** A quantidade nao passa por aqui: muda-la e `adjustTo`, que gera movimento. */
     async updateItem(id: Ulid, patch: ItemPatch): Promise<Item> {
       if ("qty" in patch) throw new Error("Quantidade muda por movimento, nao por patch");
-      return db.transaction("rw", db.items, db.meta, async () => {
+      return db.transaction("rw", db.items, db.movements, db.listMarks, db.meta, async () => {
         const item = await aliveItem(id);
         const clean = normalizeItemDraft({
           ...draftOf(item),
           // undefined significa "inalterado", nao "apague o campo".
           ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)),
         });
-        const next = touched<Item>(item, await stamp(), clean);
+        const s = await stamp();
+        const next = touched<Item>(item, s, clean);
         await db.items.put(next);
+        // O minimo pode ter mudado e tirado o item da lista.
+        await clearStaleMark(id, s);
         return next;
       });
     },
@@ -288,13 +386,16 @@ export async function openRepository(deps: RepositoryDeps) {
     }> {
       assertCount(qty, "Reposicao");
       if (unitPriceMinor !== undefined) assertPrice(unitPriceMinor);
-      return db.transaction("rw", db.items, db.movements, db.prices, db.meta, async () => {
+      const tables = [db.items, db.movements, db.prices, db.listMarks, db.meta];
+      return db.transaction("rw", tables, async () => {
         const item = await aliveItem(id);
         // Soma lida antes de gravar o movimento: e o que ja estava na despensa.
         const qtyBefore = await currentQty(id);
         const after = expiryAfterRestock(item.expiresAt, incomingExpiry, qtyBefore);
         const s = await stamp();
         const movement = await addMovement(id, qty, "restock", s);
+        // Compra registrada por qualquer caminho encerra a ida ao mercado deste item.
+        await clearMark(id, s);
         // A linha inteira e regravada (LWW por linha): edicao concorrente de outro
         // aparelho pode perder. So acontece quando a validade muda.
         if (after !== item.expiresAt) {
@@ -314,11 +415,14 @@ export async function openRepository(deps: RepositoryDeps) {
       if (!Number.isInteger(target) || target < 0) {
         throw new Error(`Quantidade exige inteiro >= 0, recebeu ${target}`);
       }
-      return db.transaction("rw", db.items, db.movements, db.meta, async () => {
+      return db.transaction("rw", db.items, db.movements, db.listMarks, db.meta, async () => {
         await aliveItem(id);
         const delta = target - (await currentQty(id));
         if (delta === 0) return null;
-        return addMovement(id, delta, "adjust", await stamp());
+        const s = await stamp();
+        const movement = await addMovement(id, delta, "adjust", s);
+        await clearStaleMark(id, s);
+        return movement;
       });
     },
 
@@ -327,17 +431,13 @@ export async function openRepository(deps: RepositoryDeps) {
       movementId: Ulid,
       expiry?: { before: string | null; after: string | null },
     ): Promise<void> {
-      await db.transaction("rw", db.items, db.movements, db.prices, db.meta, async () => {
-        const movement = await db.movements.get(movementId);
-        if (!isAlive(movement)) return;
+      const tables = [db.items, db.movements, db.prices, db.listMarks, db.meta];
+      await db.transaction("rw", tables, async () => {
+        // Sem carimbo (nem escrita em meta) quando nao ha o que desfazer.
+        if (!isAlive(await db.movements.get(movementId))) return;
         const s = await stamp();
-        await db.movements.put(touched(movement, s, { deletedAt: s.hlc }));
-        const prices = await db.prices.where("itemId").equals(movement.itemId).toArray();
-        for (const price of prices) {
-          if (price.movementId === movementId && isAlive(price)) {
-            await db.prices.put(touched(price, s, { deletedAt: s.hlc }));
-          }
-        }
+        const movement = await undoMovementRows(movementId, s);
+        if (movement === null) return;
         if (expiry !== undefined && expiry.before !== expiry.after) {
           const item = await db.items.get(movement.itemId);
           // Validade mudada depois por outra pessoa ou tela fica: o desfazer so devolve o que esta reposicao trocou.
@@ -345,14 +445,120 @@ export async function openRepository(deps: RepositoryDeps) {
             await db.items.put(touched(item, s, { expiresAt: expiry.before }));
           }
         }
+        // Desfazer um uso pode devolver o item ao minimo.
+        await clearStaleMark(movement.itemId, s);
       });
     },
 
-    async addListExtra(name: string, qty: number | null = null, priceMinor: number | null = null) {
+    /** Grava o patch na marca do item (cria ou revive a linha de id estavel). */
+    async markItem(itemId: Ulid, patch: ListMarkPatch): Promise<ListMark> {
+      const clean = normalizeListMarkPatch(patch);
+      return writeMark(itemId, () => clean);
+    },
+
+    /** Inverte o `checked` lido no banco, nunca o do render. */
+    async toggleItemMark(itemId: Ulid): Promise<ListMark> {
+      return writeMark(itemId, (base) => ({ checked: base.checked === 1 ? 0 : 1 }));
+    },
+
+    /** Tirar da lista: todas as anotacoes da marca saem junto. */
+    unpinItem: (itemId: Ulid) => setDeleted(db.listMarks, listMarkId(itemId), true),
+    restoreItemMark: (itemId: Ulid) => setDeleted(db.listMarks, listMarkId(itemId), false),
+
+    /**
+     * Repor estoque: um restock por item vivo, preco so quando digitado, marcas
+     * e pedidos apagados. Uma transacao e um carimbo: nada fica pela metade.
+     */
+    async checkout(input: {
+      items: readonly CheckoutLine[];
+      extraIds: readonly Ulid[];
+    }): Promise<CheckoutReceipt> {
+      for (const line of input.items) {
+        assertCount(line.qty, "Reposicao");
+        if (line.unitPriceMinor !== null) assertPrice(line.unitPriceMinor);
+      }
+      const tables = [db.items, db.movements, db.prices, db.listMarks, db.listExtras, db.meta];
+      return db.transaction("rw", tables, async () => {
+        const s = await stamp();
+        const receipt: CheckoutReceipt = { movementIds: [], markIds: [], extraIds: [] };
+        // A tela manda o que a pessoa viu marcado: marca escondida (autoList desligado) nao vira estoque.
+        for (const line of input.items) {
+          if (!isAlive(await db.items.get(line.itemId))) continue;
+          const movement = await addMovement(line.itemId, line.qty, "restock", s);
+          receipt.movementIds.push(movement.id);
+          if (line.unitPriceMinor !== null) {
+            await addPrice(line.itemId, movement, line.unitPriceMinor, line.qty, s);
+          }
+          const cleared = await clearMark(line.itemId, s);
+          if (cleared !== null) receipt.markIds.push(cleared.id);
+        }
+        for (const id of input.extraIds) {
+          const extra = await db.listExtras.get(id);
+          if (!isAlive(extra)) continue;
+          await db.listExtras.put(touched(extra, s, { deletedAt: s.hlc }));
+          receipt.extraIds.push(id);
+        }
+        return receipt;
+      });
+    },
+
+    /** Desfaz o repor: movimentos e precos saem; marcas e pedidos ainda apagados voltam. */
+    async undoCheckout(receipt: CheckoutReceipt): Promise<void> {
+      const tables = [db.movements, db.prices, db.listMarks, db.listExtras, db.meta];
+      await db.transaction("rw", tables, async () => {
+        const s = await stamp();
+        for (const id of receipt.movementIds) await undoMovementRows(id, s);
+        for (const id of receipt.markIds) {
+          const mark = await db.listMarks.get(id);
+          if (mark !== undefined && mark.deletedAt !== null) {
+            await db.listMarks.put(touched(mark, s, { deletedAt: null }));
+          }
+        }
+        for (const id of receipt.extraIds) {
+          const extra = await db.listExtras.get(id);
+          if (extra !== undefined && extra.deletedAt !== null) {
+            await db.listExtras.put(touched(extra, s, { deletedAt: null }));
+          }
+        }
+      });
+    },
+
+    async addListExtra(
+      rawName: string,
+      qty: number | null = null,
+      priceMinor: number | null = null,
+    ): Promise<ListExtra> {
+      const name = normalizeExtraName(rawName);
+      assertExtraNumbers(qty, priceMinor);
       return db.transaction("rw", db.listExtras, db.meta, async () => {
-        const extra: ListExtra = { ...fresh(await stamp()), name, qty, priceMinor, checked: 0 };
+        const extra: ListExtra = {
+          ...fresh(await stamp()),
+          name,
+          qty,
+          priceMinor,
+          checked: 0,
+          // authorId muda a cada escrita; quem pediu fica.
+          requestedBy: deps.currentMemberId(),
+        };
         await db.listExtras.add(extra);
         return extra;
+      });
+    },
+
+    /** Quantidade e preco do pedido vivo (LWW). undefined significa "inalterado". */
+    async updateListExtra(
+      id: Ulid,
+      patch: { qty?: number | null; priceMinor?: number | null },
+    ): Promise<ListExtra> {
+      return db.transaction("rw", db.listExtras, db.meta, async () => {
+        const extra = await db.listExtras.get(id);
+        if (!isAlive(extra)) throw new Error(`Pedido ${id} nao existe`);
+        const qty = patch.qty === undefined ? extra.qty : patch.qty;
+        const priceMinor = patch.priceMinor === undefined ? extra.priceMinor : patch.priceMinor;
+        assertExtraNumbers(qty, priceMinor);
+        const next = touched(extra, await stamp(), { qty, priceMinor });
+        await db.listExtras.put(next);
+        return next;
       });
     },
 
@@ -367,6 +573,7 @@ export async function openRepository(deps: RepositoryDeps) {
     },
 
     removeListExtra: (id: Ulid) => setDeleted(db.listExtras, id, true),
+    restoreListExtra: (id: Ulid) => setDeleted(db.listExtras, id, false),
 
     async upsertCategory(name: string, id?: Ulid): Promise<Category> {
       return upsertNamed(db.categories, name, id);

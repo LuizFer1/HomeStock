@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, expect, it } from "vitest";
 import type { BaseRow } from "../domain/model/base";
+import { listMarkId } from "../domain/model/list-mark";
 import { mergeRow } from "../domain/model/merge";
 import { prefsFrom } from "../domain/model/prefs";
 import { quantityOf } from "../domain/projections/stock";
@@ -115,5 +116,31 @@ describe("convergencia entre dois aparelhos", () => {
       const prefs = prefsFrom((await repo.snapshot()).prefs);
       expect(prefs).toMatchObject({ houseName: "Casa Azul", alertLow: false });
     }
+  });
+  it("dois aparelhos marcando o mesmo item ficam com uma marca", async () => {
+    const now = testClock();
+    const a = await device(1, now);
+    const b = await device(2, now);
+    const item = await a.repo.createItem(cafe(), 1);
+    await send(a.db, b.db, b.repo);
+
+    await a.repo.markItem(item.id, { checked: 1 });
+    await b.repo.markItem(item.id, { qty: 2 });
+
+    await send(a.db, b.db, b.repo);
+    await send(b.db, a.db, a.repo);
+    await send(a.db, b.db, b.repo);
+
+    for (const { db } of [a, b]) {
+      const rows = await db.listMarks.toArray();
+      expect(rows).toHaveLength(1);
+      // LWW por linha: a escrita de B e mais nova e vence a linha inteira, o
+      // checked de A se perde. E o preco conhecido de uma linha por item.
+      expect(rows[0]).toMatchObject({ itemId: item.id, qty: 2, checked: 0, deletedAt: null });
+    }
+
+    await a.repo.restock(item.id, 2);
+    await send(a.db, b.db, b.repo);
+    expect((await b.db.listMarks.get(listMarkId(item.id)))?.deletedAt).not.toBeNull();
   });
 });
