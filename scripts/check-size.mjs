@@ -25,12 +25,16 @@ import { gzipSync } from "node:zlib";
  *           camera/leitor no shell (o zxing fica fora) em 70.89kb (64.96kb JS +
  *           5.93kb CSS); com visor, preco, reposicao e a tela Adicionar, medida
  *           final da fatia 4 em 74.14kb (67.97kb JS + 6.17kb CSS), 0.86kb de folga.
+ *   85kb  — fatia 5, Compras: a marca da lista (listMarks), pedidos validados e o
+ *           repor em lote no repositorio estouraram o teto ja na primeira tarefa
+ *           (75.02kb medidos: 68.86kb JS + 6.17kb CSS). A aba Compras, o sheet
+ *           Ajustar e o CTA do Detalhe ainda entram nesta fatia.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact. O leitor zxing
  * tem orcamento proprio, SCANNER_LIMIT_BYTES.
  */
-export const LIMIT_BYTES = 75 * 1024;
+export const LIMIT_BYTES = 85 * 1024;
 
 /**
  * Teto das fontes woff2. Ja vem comprimidas, gzip nao as reduz; medidas a parte
