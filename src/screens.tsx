@@ -1,25 +1,17 @@
 import type { VNode } from "preact";
 import { useEffect } from "preact/hooks";
+import type { AppContext } from "./app-context";
 import { MemberWizard } from "./features/onboarding/member-wizard";
-import type { Session } from "./features/session/session";
 import { PlacesPage } from "./features/settings/places-page";
 import { SettingsPage } from "./features/settings/settings-page";
-import type { SettingsStore } from "./features/settings/store";
-import { closeIfStill, type Router, type Screen } from "./features/shell/route";
-import type { UpdateStore } from "./features/update/store";
-
-/** Tudo que as telas recebem, montado uma vez no `main.tsx`. */
-export interface AppContext {
-  router: Router;
-  session: Session;
-  update: UpdateStore;
-  settings: SettingsStore;
-  /** Pipeline da foto de perfil (o antigo `processFile`). */
-  processAvatar: (file: Blob) => Promise<string>;
-  onLeave: () => Promise<void>;
-}
+import { closeIfStill, type Screen } from "./features/shell/route";
 
 export type ScreenRender = (screen: Screen, ctx: AppContext) => VNode | null;
+
+interface ScreenProps {
+  ctx: AppContext;
+  screen: Screen;
+}
 
 /**
  * Tela que esta versao nao conhece (historico velho, link antigo): volta em
@@ -32,7 +24,25 @@ export function UnknownScreen({ onBack }: { onBack: () => void }) {
   return null;
 }
 
-function ProfileScreen({ ctx }: { ctx: AppContext }) {
+function SettingsScreen({ ctx }: ScreenProps) {
+  return (
+    <SettingsPage
+      session={ctx.session}
+      store={ctx.settings}
+      version={ctx.update.version}
+      onBack={ctx.router.back}
+      onEditProfile={() => ctx.router.push({ kind: "profile" })}
+      onOpenPlaces={() => ctx.router.push({ kind: "places" })}
+      onLeave={ctx.onLeave}
+    />
+  );
+}
+
+function PlacesScreen({ ctx }: ScreenProps) {
+  return <PlacesPage session={ctx.session} store={ctx.settings} onBack={ctx.router.back} />;
+}
+
+function ProfileScreen({ ctx }: ScreenProps) {
   const { router, session, settings } = ctx;
   const me = session.localMember.value;
   if (me === null) return <UnknownScreen onBack={router.back} />;
@@ -51,28 +61,24 @@ function ProfileScreen({ ctx }: { ctx: AppContext }) {
   );
 }
 
-export const SCREENS: Readonly<Record<string, ScreenRender>> = {
-  settings: (_s, ctx) => (
-    <SettingsPage
-      session={ctx.session}
-      store={ctx.settings}
-      version={ctx.update.version}
-      onBack={ctx.router.back}
-      onEditProfile={() => ctx.router.push({ kind: "profile" })}
-      onOpenPlaces={() => ctx.router.push({ kind: "places" })}
-      onLeave={ctx.onLeave}
-    />
-  ),
-  places: (_s, ctx) => (
-    <PlacesPage session={ctx.session} store={ctx.settings} onBack={ctx.router.back} />
-  ),
-  // Componente e nao funcao: le o morador como sinal e reage a gravacao.
-  profile: (_s, ctx) => <ProfileScreen ctx={ctx} />,
-};
+/**
+ * Convencao: toda entrada devolve so `<XScreen ctx={ctx} screen={s} />`. Leitura
+ * de sinal e hook ficam dentro do componente da tela; lidos aqui, entrariam no
+ * render do `App` e cada mudanca redesenharia o app inteiro.
+ */
+export const SCREENS = {
+  settings: (s, ctx) => <SettingsScreen ctx={ctx} screen={s} />,
+  places: (s, ctx) => <PlacesScreen ctx={ctx} screen={s} />,
+  profile: (s, ctx) => <ProfileScreen ctx={ctx} screen={s} />,
+} as const satisfies Readonly<Record<string, ScreenRender>>;
+
+export type ScreenKind = keyof typeof SCREENS;
 
 /** Desconhecida ou render que devolve null -> UnknownScreen. */
 export function renderScreen(screen: Screen, ctx: AppContext): VNode {
   // `hasOwn`: um `kind` "toString" de historico velho nao pode achar o prototipo.
-  const render = Object.hasOwn(SCREENS, screen.kind) ? SCREENS[screen.kind] : undefined;
+  const render: ScreenRender | undefined = Object.hasOwn(SCREENS, screen.kind)
+    ? SCREENS[screen.kind as ScreenKind]
+    : undefined;
   return render?.(screen, ctx) ?? <UnknownScreen onBack={ctx.router.back} />;
 }

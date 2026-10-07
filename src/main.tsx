@@ -1,6 +1,7 @@
 import "./styles/app.css";
 import { render } from "preact";
 import { App } from "./app";
+import type { AppContext } from "./app-context";
 import { HomeStockDb } from "./data/db";
 import { cryptoRandomChunk } from "./domain/ids/ulid";
 import { createOnboardingStore } from "./features/onboarding/store";
@@ -14,7 +15,6 @@ import { scopeResetDeps } from "./features/settings/reset-scope";
 import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import { createUpdateStore, type SwContainer } from "./features/update/store";
-import type { AppContext } from "./screens";
 
 const root = document.getElementById("app");
 if (!root) {

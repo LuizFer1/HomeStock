@@ -1,11 +1,12 @@
 import { Fragment } from "preact";
+import type { AppContext } from "./app-context";
 import { MemberWizard } from "./features/onboarding/member-wizard";
 import type { OnboardingStore } from "./features/onboarding/store";
 import type { Tab } from "./features/shell/route";
 import { TabBar } from "./features/shell/tab-bar";
 import { Avatar } from "./features/ui/avatar";
 import { UpdateBanner } from "./features/update/update-banner";
-import { type AppContext, renderScreen } from "./screens";
+import { renderScreen } from "./screens";
 
 const TITLES: Record<Tab, string> = {
   home: "Início",

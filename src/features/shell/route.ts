@@ -1,4 +1,6 @@
 import { computed, type ReadonlySignal, signal } from "@preact/signals";
+// So tipo: apagado no build, nao cria ciclo de modulos em tempo de execucao.
+import type { ScreenKind } from "../../screens";
 
 export type Tab = "home" | "stock" | "shopping";
 
@@ -43,6 +45,9 @@ export function createRouter(history: HistoryLike, initial: Tab = "home"): Route
   const tab = signal<Tab>(initial);
   const stack = signal<readonly Screen[]>([]);
   let unwound: (() => void) | null = null;
+  // Voltares pedidos ao historico cujo popstate ainda nao chegou. Sem a conta,
+  // dois toques em Voltar na primeira tela empilhada sairiam do app.
+  let pendingBacks = 0;
 
   return {
     tab,
@@ -58,7 +63,8 @@ export function createRouter(history: HistoryLike, initial: Tab = "home"): Route
       history.pushState({ depth: stack.value.length }, "");
     },
     back() {
-      if (stack.value.length === 0) return;
+      if (stack.value.length - pendingBacks <= 0) return;
+      pendingBacks += 1;
       history.back();
     },
     unwind() {
@@ -74,6 +80,7 @@ export function createRouter(history: HistoryLike, initial: Tab = "home"): Route
     onPopState() {
       unwound?.();
       unwound = null;
+      if (pendingBacks > 0) pendingBacks -= 1;
       if (stack.value.length === 0) return;
       stack.value = stack.value.slice(0, -1);
     },
@@ -84,6 +91,6 @@ export function createRouter(history: HistoryLike, initial: Tab = "home"): Route
  * Volta so se a tela de cima ainda e a mesma de antes do `await`: o voltar do
  * sistema durante a gravacao ja desempilhou, e outro back sairia da tela de baixo.
  */
-export function closeIfStill(router: Router, depth: number, kind: string): void {
+export function closeIfStill(router: Router, depth: number, kind: ScreenKind): void {
   if (router.stack.value.length === depth && router.top.value?.kind === kind) router.back();
 }

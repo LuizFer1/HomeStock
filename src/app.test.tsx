@@ -187,6 +187,19 @@ describe("App", () => {
     expect(history.back).not.toHaveBeenCalled();
   });
 
+  it("dois toques em Voltar na primeira tela empilhada voltam uma vez so", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { router, history } = setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
+    const back = await screen.findByRole("button", { name: "Voltar" });
+    // Os dois toques antes do popstate: o segundo sairia do app no navegador.
+    fireEvent.click(back);
+    fireEvent.click(back);
+    expect(history.back).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
+    expect(router.stack.value).toEqual([]);
+  });
+
   it("Categorias e locais abre a tela de lugares e Voltar volta aos Ajustes", async () => {
     const { session } = await openTestSession({ member: ANA });
     const { router, history } = setup(session);

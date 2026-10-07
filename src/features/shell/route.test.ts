@@ -74,6 +74,28 @@ describe("router", () => {
     expect(fake.jumps).toEqual([]);
   });
 
+  it("back com um voltar em andamento nao volta de novo", () => {
+    const fake = fakeHistory();
+    const router = createRouter(fake.history);
+    router.push({ kind: "settings" });
+    router.back();
+    router.back();
+    expect(fake.backs()).toBe(1);
+    router.onPopState();
+    expect(router.stack.value).toEqual([]);
+  });
+
+  it("depois do popstate, back volta de novo", () => {
+    const fake = fakeHistory();
+    const router = createRouter(fake.history);
+    router.push({ kind: "settings" });
+    router.push({ kind: "places" });
+    router.back();
+    router.onPopState();
+    router.back();
+    expect(fake.backs()).toBe(2);
+  });
+
   it("back sem telas nao mexe no historico", () => {
     const fake = fakeHistory();
     createRouter(fake.history).back();
