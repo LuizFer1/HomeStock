@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { testContext } from "../../app-context.fake";
 import { testClock } from "../../data/test-db.fake";
@@ -113,14 +113,78 @@ describe("AlertsPage", () => {
     );
   });
 
-  it("dois cliques seguidos gravam um movimento so", async () => {
+  it("dois cliques no mesmo render gravam um movimento so", async () => {
     const { session } = await setup(seedCafeIogurte);
     const id = idOf(session, IOGURTE);
     const button = screen.getByRole("button", { name: USE });
-    fireEvent.click(button);
-    fireEvent.click(button);
+    // No mesmo render o botao ainda nao esta desabilitado: so a trava por ref segura o segundo.
+    act(() => {
+      button.click();
+      button.click();
+    });
     await waitFor(() => expect(screen.getByText("1 pendente")).toBeTruthy());
     expect(quantities(session.data.value.movements).get(id)).toBe(1);
+  });
+
+  it("uso gravado mas resolve falhou: erro no cartao e o toast ainda desfaz o uso", async () => {
+    const { session, ctx } = await setup(seedCafeIogurte);
+    const id = idOf(session, IOGURTE);
+    ctx.alerts.resolve = async () => {
+      throw new Error("banco indisponivel");
+    };
+    fireEvent.click(screen.getByRole("button", { name: USE }));
+    await waitFor(() =>
+      expect(screen.getByText("Usou 1 un, mas não foi possível resolver o alerta.")).toBeTruthy(),
+    );
+    expect(quantities(session.data.value.movements).get(id)).toBe(1);
+    expect(screen.getByText("2 pendentes")).toBeTruthy();
+    expect(screen.getByText("Usou 1 un de Iogurte natural")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    await waitFor(() => expect(quantities(session.data.value.movements).get(id)).toBe(2));
+  });
+
+  it("fixar gravado mas resolve falhou: erro no cartao e o toast solta a marca", async () => {
+    const { session, ctx } = await setup(async (s) => {
+      await s.run((r) => r.createItem(cafe(), 1));
+      await s.run((r) => r.setPref("autoList", false));
+    });
+    const id = idOf(session, "Café em grãos");
+    ctx.alerts.resolve = async () => {
+      throw new Error("banco indisponivel");
+    };
+    fireEvent.click(
+      screen.getByRole("button", { name: "Adicionar à lista, Café em grãos abaixo do mínimo" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText("Café em grãos entrou na lista, mas não foi possível resolver o alerta."),
+      ).toBeTruthy(),
+    );
+    const mark = () => session.data.value.listMarks.find((m) => m.itemId === id && isAlive(m));
+    expect(mark()?.pinned).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    await waitFor(() => expect(mark()).toBeUndefined());
+  });
+
+  it("o erro some quando o alerta passa a resolvido", async () => {
+    const { session, ctx } = await setup(seedCafeIogurte);
+    const key = `exp:${idOf(session, IOGURTE)}:2026-10-07`;
+    const original = ctx.alerts.resolve;
+    ctx.alerts.resolve = async () => {
+      throw new Error("banco indisponivel");
+    };
+    fireEvent.click(screen.getByRole("button", { name: USE }));
+    await waitFor(() => screen.getByText("Usou 1 un, mas não foi possível resolver o alerta."));
+    ctx.alerts.resolve = original;
+    await ctx.alerts.resolve([key]);
+    await waitFor(() =>
+      expect(screen.queryByText("Usou 1 un, mas não foi possível resolver o alerta.")).toBeNull(),
+    );
+    // Reaberto, o erro velho nao volta.
+    await ctx.alerts.reopen([key]);
+    await waitFor(() => screen.getByRole("button", { name: /^Marcar como usado/ }));
+    expect(screen.queryByText(/não foi possível resolver/)).toBeNull();
   });
 
   it("Adicionar a lista fixa o item, resolve e o Desfazer solta a marca", async () => {
@@ -175,7 +239,11 @@ describe("AlertsPage", () => {
     expect(
       screen.getByRole("button", { name: "Ver item, Rafa usou 1 pct de Café em grãos" }),
     ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Esta semana" })).toBeTruthy();
+    const week = within(screen.getByRole("region", { name: "Esta semana" }));
+    expect(week.getByText("Rafa adicionou 1 item à lista")).toBeTruthy();
+    const today = within(screen.getByRole("region", { name: "Hoje" }));
+    expect(today.getByText("Rafa usou 1 pct de Café em grãos")).toBeTruthy();
+    expect(week.queryByText("Rafa usou 1 pct de Café em grãos")).toBeNull();
     expect(screen.getByText("Banana prata · ontem, 19:40")).toBeTruthy();
 
     const entendi = "Entendi, Rafa adicionou 1 item à lista";

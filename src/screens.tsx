@@ -70,9 +70,9 @@ export const SCREENS = {
   // Sem id nao ha item a mostrar: null cai no UnknownScreen e volta.
   item: (s, ctx) => (s.id ? <ItemDetailPage ctx={ctx} id={s.id} /> : null),
   "item-edit": (s, ctx) => (s.id ? <ItemForm ctx={ctx} mode="edit" id={s.id} /> : null),
-  // FAB Escanear: a camera abre ao montar. Estoque vazio: a mesma tela, camera parada.
   // Pelo sino e pelo contador "vencendo" do Inicio.
   alerts: (s, ctx) => <AlertsScreen ctx={ctx} screen={s} />,
+  // FAB Escanear: a camera abre ao montar. Estoque vazio: a mesma tela, camera parada.
   scan: (_s, ctx) => <AddItemPage ctx={ctx} kind="scan" />,
   "item-new": (_s, ctx) => <AddItemPage ctx={ctx} kind="item-new" />,
 } as const satisfies Readonly<Record<string, ScreenRender>>;

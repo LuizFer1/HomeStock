@@ -1,6 +1,6 @@
 import { ChevronLeft } from "lucide-preact";
 import type { JSX } from "preact";
-import { useId, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { AppContext } from "../../app-context";
 import type { Ulid } from "../../domain/ids/ulid";
 import { isAlive } from "../../domain/model/base";
@@ -61,6 +61,18 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
     (card ?? heading.current)?.focus();
   }
 
+  // Alerta resolvido (aqui ou por outro morador) nao guarda erro velho: reaberto, ele nao volta.
+  useEffect(() => {
+    const resolved = new Set(
+      [...list.today, ...list.week, ...list.older].filter((a) => a.resolved).map((a) => a.key),
+    );
+    setErrors((e) => {
+      const stale = Object.keys(e).filter((k) => resolved.has(k));
+      if (stale.length === 0) return e;
+      return Object.fromEntries(Object.entries(e).filter(([k]) => !resolved.has(k)));
+    });
+  }, [list]);
+
   useLayoutEffect(() => {
     mounted.current = true;
     const back = alerts.returnFocus.peek();
@@ -93,51 +105,97 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
       return rest;
     });
     try {
-      if (action.kind === "use" && alert.kind === "exp") {
-        const { name, unit, id } = alert.item;
-        const movement = await items.step(id, -1);
-        // Se o resolve falhar, o uso fica e o alerta continua pendente (erro no cartao).
-        const written = await alerts.resolve(resolveKeys);
-        toast.show(`Usou 1 ${unit} de ${name}`, {
-          label: "Desfazer",
-          run: async () => {
+      switch (action.kind) {
+        case "use": {
+          if (alert.kind !== "exp") throw new Error(`Acao use em alerta ${alert.kind}`);
+          const { name, unit, id } = alert.item;
+          const movement = await items.step(id, -1);
+          const undoUse = async () => {
             await items.undo(movement.id, movement.clearedMarkId);
-            // So o que ESTE toque gravou: nunca a lista original.
-            await alerts.reopen(written);
             refocus(key);
-          },
-        });
-      } else if (action.kind === "list" && (alert.kind === "out" || alert.kind === "low")) {
-        const { item } = alert;
-        const d = session.data.value;
-        const hadMark = liveMarkOf(item, d.movements, d.listMarks) !== undefined;
-        await shopping.pin(item.id);
-        const written = await alerts.resolve(resolveKeys);
-        toast.show(`${item.name} entrou na lista`, {
-          label: "Desfazer",
-          run: async () => {
-            await shopping.undoPin(item.id, hadMark);
-            await alerts.reopen(written);
-            refocus(key);
-          },
-        });
-      } else if (action.kind === "view") {
-        const id = itemIdOf(alert);
-        await alerts.resolve(resolveKeys);
-        if (id !== null && mounted.current) {
-          alerts.returnFocus.value = key;
-          router.push({ kind: "item", id });
+          };
+          let written: string[];
+          try {
+            written = await alerts.resolve(resolveKeys);
+          } catch {
+            // O uso ficou gravado e o alerta continua pendente: o desfazer ainda tem de existir.
+            toast.show(`Usou 1 ${unit} de ${name}`, { label: "Desfazer", run: undoUse });
+            if (mounted.current) {
+              const msg = `Usou 1 ${unit}, mas não foi possível resolver o alerta.`;
+              setErrors((e) => ({ ...e, [key]: msg }));
+            }
+            return;
+          }
+          toast.show(`Usou 1 ${unit} de ${name}`, {
+            label: "Desfazer",
+            run: async () => {
+              await items.undo(movement.id, movement.clearedMarkId);
+              // So o que ESTE toque gravou: nunca a lista original.
+              await alerts.reopen(written);
+              refocus(key);
+            },
+          });
+          break;
         }
-        return;
-      } else {
-        const written = await alerts.resolve(resolveKeys);
-        toast.show("Alerta resolvido", {
-          label: "Desfazer",
-          run: async () => {
-            await alerts.reopen(written);
-            refocus(key);
-          },
-        });
+        case "list": {
+          if (alert.kind !== "out" && alert.kind !== "low") {
+            throw new Error(`Acao list em alerta ${alert.kind}`);
+          }
+          const { item } = alert;
+          const d = session.data.value;
+          const hadMark = liveMarkOf(item, d.movements, d.listMarks) !== undefined;
+          await shopping.pin(item.id);
+          let written: string[];
+          try {
+            written = await alerts.resolve(resolveKeys);
+          } catch {
+            toast.show(`${item.name} entrou na lista`, {
+              label: "Desfazer",
+              run: async () => {
+                await shopping.undoPin(item.id, hadMark);
+                refocus(key);
+              },
+            });
+            if (mounted.current) {
+              const msg = `${item.name} entrou na lista, mas não foi possível resolver o alerta.`;
+              setErrors((e) => ({ ...e, [key]: msg }));
+            }
+            return;
+          }
+          toast.show(`${item.name} entrou na lista`, {
+            label: "Desfazer",
+            run: async () => {
+              await shopping.undoPin(item.id, hadMark);
+              await alerts.reopen(written);
+              refocus(key);
+            },
+          });
+          break;
+        }
+        case "view": {
+          const id = itemIdOf(alert);
+          await alerts.resolve(resolveKeys);
+          if (id !== null && mounted.current) {
+            alerts.returnFocus.value = key;
+            router.push({ kind: "item", id });
+          }
+          return;
+        }
+        case "ack": {
+          const written = await alerts.resolve(resolveKeys);
+          toast.show("Alerta resolvido", {
+            label: "Desfazer",
+            run: async () => {
+              await alerts.reopen(written);
+              refocus(key);
+            },
+          });
+          break;
+        }
+        default: {
+          const never: never = action.kind;
+          throw new Error(`Acao desconhecida: ${never}`);
+        }
       }
       refocus(key);
     } catch (cause) {
