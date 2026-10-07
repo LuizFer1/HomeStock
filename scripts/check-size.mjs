@@ -30,12 +30,16 @@ import { gzipSync } from "node:zlib";
  *           (75.02kb medidos: 68.86kb JS + 6.17kb CSS). A aba Compras, o sheet
  *           Ajustar e o CTA do Detalhe entraram sem elevar o teto: medida final da
  *           fatia 5 em 79.51kb (73.20kb JS + 6.30kb CSS), 5.49kb de folga.
+ *   95kb  — fatia 6, Inicio e Alertas: alertStates, as projecoes de alertas e da
+ *           atividade, a tela Alertas e a Atividade (83.56kb ate a tela Alertas)
+ *           levaram o app a 85.88kb (79.41kb JS + 6.47kb CSS) com o Inicio novo,
+ *           acima do teto de 85kb; medida final da fatia 6, 9.12kb de folga.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact. O leitor zxing
  * tem orcamento proprio, SCANNER_LIMIT_BYTES.
  */
-export const LIMIT_BYTES = 85 * 1024;
+export const LIMIT_BYTES = 95 * 1024;
 
 /**
  * Teto das fontes woff2. Ja vem comprimidas, gzip nao as reduz; medidas a parte
