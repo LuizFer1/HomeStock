@@ -7,10 +7,13 @@ export interface TextFieldProps
   class?: string;
 }
 
-const BASE =
-  "w-full min-h-12 rounded-pill border border-divider bg-surface px-[14px] text-[14px] " +
-  "text-text caret-accent placeholder:text-neutral-600 hover:border-text/45 focus-visible:border-accent";
-const LARGE = "min-h-[60px] px-[22px] font-heading text-[22px]";
+const COMMON =
+  "w-full rounded-pill border border-divider bg-surface " +
+  "text-text caret-accent placeholder:text-neutral-600 hover:border-text/45 " +
+  "focus-visible:border-accent focus-visible:outline-offset-0";
+// Um ou outro, nunca empilhados: min-h, px e text conflitariam na ordem do CSS.
+const NORMAL = `${COMMON} min-h-12 px-[14px] text-[14px]`;
+const LARGE = `${COMMON} min-h-[60px] px-[22px] font-heading text-[22px]`;
 
 export function TextField({ label, large = false, class: extra, ...rest }: TextFieldProps) {
   return (
@@ -18,7 +21,7 @@ export function TextField({ label, large = false, class: extra, ...rest }: TextF
       type="text"
       {...rest}
       aria-label={label}
-      class={`${BASE} ${large ? LARGE : ""} ${extra ?? ""}`}
+      class={`${large ? LARGE : NORMAL} ${extra ?? ""}`}
     />
   );
 }

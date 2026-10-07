@@ -53,4 +53,27 @@ describe("processPhoto", () => {
     await processPhoto(new Blob(), d, AVATAR_PHOTO);
     expect(d.encode.mock.calls[0]?.[2]).toBe(160);
   });
+
+  it("devolve o segundo degrau quando so ele cabe", async () => {
+    const d = deps([500, 50, 5]);
+    expect((await processPhoto(new Blob(), d, spec)).length).toBe(50);
+    expect(d.encode).toHaveBeenCalledTimes(2);
+  });
+
+  it("libera a fonte no sucesso e na falha", async () => {
+    const ok = { ...deps([5, 5, 5]), release: vi.fn() };
+    await processPhoto(new Blob(), ok, spec);
+    expect(ok.release).toHaveBeenCalledTimes(1);
+
+    const bad = { ...deps([500, 500, 500]), release: vi.fn() };
+    await expect(processPhoto(new Blob(), bad, spec)).rejects.toThrow();
+    expect(bad.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha de decode vira mensagem amigavel", async () => {
+    const d = { ...deps([5]), decode: vi.fn().mockRejectedValue(new Error("boom")) };
+    await expect(processPhoto(new Blob(), d, spec)).rejects.toThrow(
+      "Não consegui abrir essa imagem. Tente outra foto.",
+    );
+  });
 });

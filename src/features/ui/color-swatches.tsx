@@ -1,3 +1,4 @@
+import { useId } from "preact/hooks";
 import { MEMBER_COLORS, type MemberColor } from "../../domain/model/member";
 import { MEMBER_COLOR_STYLE } from "./member-color";
 
@@ -8,6 +9,8 @@ export interface ColorSwatchesProps {
 }
 
 export function ColorSwatches({ value, onChange, legend }: ColorSwatchesProps) {
+  // Nome unico por instancia: dois grupos na tela nao podem compartilhar o radio.
+  const group = useId();
   return (
     <fieldset class="m-0 grid min-w-0 grid-cols-4 justify-items-center gap-[14px] border-0 p-0">
       <legend class="sr-only">{legend}</legend>
@@ -22,7 +25,7 @@ export function ColorSwatches({ value, onChange, legend }: ColorSwatchesProps) {
           >
             <input
               type="radio"
-              name="member-color"
+              name={group}
               class="sr-only"
               aria-label={label}
               checked={selected}

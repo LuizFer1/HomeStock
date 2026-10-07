@@ -18,4 +18,14 @@ describe("SwitchRow", () => {
     fireEvent.click(screen.getByText("Estoque baixo"));
     expect(onChange).toHaveBeenCalledWith(false);
   });
+
+  it("a dica e descricao, nao nome", () => {
+    render(
+      <SwitchRow label="Estoque baixo" hint="Avisa quando acabar" checked onChange={() => {}} />,
+    );
+    const el = screen.getByRole("switch", { name: "Estoque baixo" });
+    expect(el.getAttribute("aria-describedby")).toBeTruthy();
+    const id = el.getAttribute("aria-describedby") as string;
+    expect(document.getElementById(id)?.textContent).toBe("Avisa quando acabar");
+  });
 });

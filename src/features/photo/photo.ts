@@ -24,6 +24,8 @@ export interface PhotoSource {
 export interface PhotoDeps {
   decode: (file: Blob) => Promise<PhotoSource>;
   encode: (source: PhotoSource, crop: Crop, size: number, quality: number) => Promise<string>;
+  /** Libera a fonte decodificada (ex.: ImageBitmap.close) depois do encode. */
+  release?: (source: PhotoSource) => void;
 }
 
 /** Da melhor para a pior: o primeiro degrau resolve a foto simples, o ultimo e a ultima chance. */
@@ -46,12 +48,21 @@ export function squareCrop(width: number, height: number): Crop {
  * `null` em silencio faria a pessoa achar que a foto foi salva.
  */
 export async function processPhoto(file: Blob, deps: PhotoDeps, spec: PhotoSpec): Promise<string> {
-  const source = await deps.decode(file);
+  let source: PhotoSource;
+  try {
+    source = await deps.decode(file);
+  } catch {
+    throw new Error("Não consegui abrir essa imagem. Tente outra foto.");
+  }
   const crop = squareCrop(source.width, source.height);
 
-  for (const quality of QUALITIES) {
-    const uri = await deps.encode(source, crop, spec.size, quality);
-    if (uri.length <= spec.maxChars) return uri;
+  try {
+    for (const quality of QUALITIES) {
+      const uri = await deps.encode(source, crop, spec.size, quality);
+      if (uri.length <= spec.maxChars) return uri;
+    }
+  } finally {
+    deps.release?.(source);
   }
 
   throw new Error("Essa imagem é grande demais. Tente uma foto mais simples ou menor.");

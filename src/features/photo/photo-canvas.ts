@@ -13,6 +13,9 @@ import type { PhotoDeps } from "./photo";
 export const browserPhotoDeps: PhotoDeps = {
   decode: (file) => createImageBitmap(file),
 
+  // So ImageBitmap tem close; a fonte aqui sempre vem do decode acima.
+  release: (source) => (source as ImageBitmap).close(),
+
   encode: async (source, crop, size, quality) => {
     const canvas = document.createElement("canvas");
     canvas.width = size;
