@@ -1,17 +1,33 @@
-import type { ComponentChildren, JSX } from "preact";
-import { useEffect, useId, useRef, useState } from "preact/hooks";
-import { describeError } from "../session/session";
+import type { ComponentChildren } from "preact";
+import { useId, useRef } from "preact/hooks";
 import { Button } from "../ui/button";
+import { ErrorText } from "../ui/error-text";
 import { TextField } from "../ui/text-field";
+import { useInlineEdit } from "../ui/use-inline-edit";
 
-/** Kicker 12/600 accent-700 (margem 20/0/8/6) e bloco neutral-100 raio 28, padding 4/16. */
-export function Group({ label, children }: { label: string; children: ComponentChildren }) {
+/** Kicker 12/600 accent-700 (margem 20/0/8/6). */
+export const GROUP_KICKER =
+  "mt-5 mb-2 ml-1.5 font-body text-[12px] font-semibold leading-normal tracking-normal text-accent-700";
+
+/** Bloco neutral-100 raio 28, padding 4/16. */
+export const GROUP_BLOCK = "rounded-[28px] bg-neutral-100 px-4 py-1";
+
+/** Kicker e bloco. Com `id` o titulo ganha esse id e a secao vira regiao nomeada por ele. */
+export function Group({
+  label,
+  id,
+  children,
+}: {
+  label: string;
+  id?: string;
+  children: ComponentChildren;
+}) {
   return (
-    <section>
-      <h2 class="mt-5 mb-2 ml-1.5 font-body text-[12px] font-semibold leading-normal tracking-normal text-accent-700">
+    <section aria-labelledby={id}>
+      <h2 id={id} class={GROUP_KICKER}>
         {label}
       </h2>
-      <div class="rounded-[28px] bg-neutral-100 px-4 py-1">{children}</div>
+      <div class={GROUP_BLOCK}>{children}</div>
     </section>
   );
 }
@@ -55,7 +71,7 @@ export function Row({
 
 /**
  * Texto editavel no lugar. Enter salva, Esc cancela; falha de `onSave` fica em
- * role="alert" com o campo aberto.
+ * role="alert" com o campo aberto. Valor igual ao gravado fecha sem escrever.
  */
 export function InlineTextRow({
   label,
@@ -71,66 +87,19 @@ export function InlineTextRow({
   onSave: (value: string) => Promise<void>;
 }) {
   const inputId = useId();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // Ref e nao estado: dois Enter no mesmo render leem o mesmo `busy` velho.
-  const saving = useRef(false);
   // TextField nao repassa `ref`: acha-se o input pelo conteiner.
   const field = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const wasEditing = useRef(false);
+  const edit = useInlineEdit({
+    value,
+    onSave,
+    scope: field,
+    returnFocus: () => trigger.current,
+  });
 
-  // A tela troca o botao pelo campo (e vice-versa): sem isso o foco se perde.
-  useEffect(() => {
-    if (editing) field.current?.querySelector("input")?.focus();
-    else if (wasEditing.current) trigger.current?.focus();
-    wasEditing.current = editing;
-  }, [editing]);
-
-  function open() {
-    setDraft(value);
-    setError(null);
-    setEditing(true);
-  }
-
-  function cancel() {
-    setError(null);
-    setEditing(false);
-  }
-
-  async function save() {
-    if (saving.current) return;
-    saving.current = true;
-    setBusy(true);
-    setError(null);
-    try {
-      await onSave(draft);
-      setEditing(false);
-    } catch (cause) {
-      setError(describeError(cause));
-      // O botao Salvar estava com o foco e ficou desabilitado durante a gravacao.
-      field.current?.querySelector("input")?.focus();
-    } finally {
-      saving.current = false;
-      setBusy(false);
-    }
-  }
-
-  function onKeyDown(event: JSX.TargetedKeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void save();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      cancel();
-    }
-  }
-
-  if (!editing) {
+  if (!edit.editing) {
     return (
-      <button type="button" ref={trigger} class={`${ROW_BASE} min-h-[52px]`} onClick={open}>
+      <button type="button" ref={trigger} class={`${ROW_BASE} min-h-[52px]`} onClick={edit.open}>
         <span class="flex-1 text-[14px] font-semibold">{label}</span>
         <span class="min-w-0 truncate text-[13px] text-neutral-700">
           {value === "" ? fallback : value}
@@ -147,27 +116,22 @@ export function InlineTextRow({
       <div ref={field} class="flex items-center gap-2">
         <TextField
           id={inputId}
-          label={label}
-          value={draft}
+          value={edit.draft}
           maxLength={maxLength}
           class="min-w-0 flex-1"
-          onInput={(event) => setDraft(event.currentTarget.value)}
-          onKeyDown={onKeyDown}
+          onInput={(event) => edit.setDraft(event.currentTarget.value)}
+          onKeyDown={edit.onKeyDown}
         />
         <Button
           class="min-h-12"
           aria-label={`Salvar ${label}`}
-          disabled={busy}
-          onClick={() => void save()}
+          disabled={edit.busy}
+          onClick={() => void edit.save()}
         >
           Salvar
         </Button>
       </div>
-      {error !== null ? (
-        <p role="alert" class="text-[12px] font-semibold text-accent-700">
-          {error}
-        </p>
-      ) : null}
+      {edit.error !== null ? <ErrorText>{edit.error}</ErrorText> : null}
     </div>
   );
 }

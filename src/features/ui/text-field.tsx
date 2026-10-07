@@ -2,7 +2,9 @@ import type { JSX } from "preact";
 
 export interface TextFieldProps
   extends Omit<JSX.InputHTMLAttributes<HTMLInputElement>, "class" | "size"> {
-  label: string;
+  /** `aria-label` do campo. Com `<label for>` visivel nao passe: o aria-label o sobrescreveria. */
+  label?: string;
+  id?: string;
   large?: boolean;
   class?: string;
 }
@@ -15,11 +17,12 @@ const COMMON =
 const NORMAL = `${COMMON} min-h-12 px-[14px] text-[14px]`;
 const LARGE = `${COMMON} min-h-[60px] px-[22px] font-heading text-[22px]`;
 
-export function TextField({ label, large = false, class: extra, ...rest }: TextFieldProps) {
+export function TextField({ label, id, large = false, class: extra, ...rest }: TextFieldProps) {
   return (
     <input
       type="text"
       {...rest}
+      id={id}
       aria-label={label}
       class={`${large ? LARGE : NORMAL} ${extra ?? ""}`}
     />

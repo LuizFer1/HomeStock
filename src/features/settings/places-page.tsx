@@ -1,13 +1,15 @@
 import { ChevronLeft, Pencil, Trash2 } from "lucide-preact";
-import type { JSX } from "preact";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 import type { Ulid } from "../../domain/ids/ulid";
 import { isAlive } from "../../domain/model/base";
 import { describeError, type Session } from "../session/session";
 import { Button } from "../ui/button";
+import { ErrorText } from "../ui/error-text";
 import { IconButton } from "../ui/icon-button";
 import { TextField } from "../ui/text-field";
+import { useInlineEdit } from "../ui/use-inline-edit";
 import { checkName } from "./names";
+import { Group } from "./settings-group";
 import type { SettingsStore } from "./store";
 
 export interface PlacesPageProps {
@@ -44,17 +46,18 @@ interface PlaceRowProps {
 
 function PlaceRow({ id, name, count, siblings, onRename, onRemove, onRemoved }: PlaceRowProps) {
   const inputId = useId();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(name);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
-  // Ref e nao estado: dois toques no mesmo render leem o mesmo `busy` velho.
-  const working = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const row = useRef<HTMLDivElement>(null);
-  const wasEditing = useRef(false);
   const wasArmed = useRef(false);
+  const edit = useInlineEdit({
+    value: name,
+    onSave: (draft) => onRename(draft, id),
+    validate: (draft) => checkName(draft, siblings, id),
+    scope: row,
+    returnFocus: () => row.current?.querySelector<HTMLElement>("[data-rename] button"),
+  });
+  const { editing } = edit;
 
   useEffect(
     () => () => {
@@ -62,14 +65,6 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove, onRemoved }: 
     },
     [],
   );
-
-  // Lapis vira campo e volta: sem isso o foco se perde com o botao que sumiu.
-  useEffect(() => {
-    if (editing) row.current?.querySelector("input")?.focus();
-    else if (wasEditing.current)
-      row.current?.querySelector<HTMLElement>("[data-rename] button")?.focus();
-    wasEditing.current = editing;
-  }, [editing]);
 
   // Lixeira vira "Remover?" e volta: o botao que sumiu levava o foco para o body.
   useEffect(() => {
@@ -93,45 +88,10 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove, onRemoved }: 
 
   function open() {
     disarm();
-    setDraft(name);
-    setError(null);
-    setEditing(true);
-  }
-
-  function cancel() {
-    setError(null);
-    setEditing(false);
-  }
-
-  async function save() {
-    if (working.current) return;
-    // Nada mudou: fechar sem gravar evita uma escrita (e um HLC novo) a toa.
-    if (draft.trim() === name) {
-      cancel();
-      return;
-    }
-    const problem = checkName(draft, siblings, id);
-    if (problem !== null) {
-      setError(problem);
-      return;
-    }
-    working.current = true;
-    setBusy(true);
-    setError(null);
-    try {
-      await onRename(draft, id);
-      setEditing(false);
-    } catch (cause) {
-      setError(describeError(cause));
-      row.current?.querySelector("input")?.focus();
-    } finally {
-      working.current = false;
-      setBusy(false);
-    }
+    edit.open();
   }
 
   async function remove() {
-    if (working.current) return;
     if (count > 0 && !armed) {
       setArmed(true);
       timer.current = setTimeout(() => {
@@ -141,27 +101,10 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove, onRemoved }: 
       return;
     }
     disarm();
-    working.current = true;
-    setBusy(true);
-    try {
+    await edit.guarded(async () => {
       await onRemove(id);
       onRemoved();
-    } catch (cause) {
-      setError(describeError(cause));
-    } finally {
-      working.current = false;
-      setBusy(false);
-    }
-  }
-
-  function onKeyDown(event: JSX.TargetedKeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void save();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      cancel();
-    }
+    });
   }
 
   return (
@@ -173,17 +116,16 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove, onRemoved }: 
           </label>
           <TextField
             id={inputId}
-            label={`Nome de ${name}`}
-            value={draft}
+            value={edit.draft}
             class="min-w-0 flex-1"
-            onInput={(event) => setDraft(event.currentTarget.value)}
-            onKeyDown={onKeyDown}
+            onInput={(event) => edit.setDraft(event.currentTarget.value)}
+            onKeyDown={edit.onKeyDown}
           />
           <Button
             class="min-h-12"
             aria-label={`Salvar ${name}`}
-            disabled={busy}
-            onClick={() => void save()}
+            disabled={edit.busy}
+            onClick={() => void edit.save()}
           >
             Salvar
           </Button>
@@ -204,7 +146,7 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove, onRemoved }: 
               <Button
                 variant="ghost"
                 aria-label={`Confirmar remoção de ${name}`}
-                disabled={busy}
+                disabled={edit.busy}
                 onClick={() => void remove()}
               >
                 Remover?
@@ -217,11 +159,7 @@ function PlaceRow({ id, name, count, siblings, onRename, onRemove, onRemoved }: 
           </span>
         </div>
       )}
-      {error !== null ? (
-        <p role="alert" class="mt-1 text-[12px] font-semibold text-accent-700">
-          {error}
-        </p>
-      ) : null}
+      {edit.error !== null ? <ErrorText class="mt-1">{edit.error}</ErrorText> : null}
     </div>
   );
 }
@@ -265,65 +203,52 @@ function PlaceList({ kind, rows, onUpsert, onRemove }: PlaceListProps) {
   }
 
   return (
-    <section aria-labelledby={headingId}>
-      <h2
-        id={headingId}
-        class="mt-5 mb-2 ml-1.5 font-body text-[12px] font-semibold leading-normal tracking-normal text-accent-700"
-      >
-        {copy.title}
-      </h2>
-      <div class="rounded-[28px] bg-neutral-100 px-4 py-1">
-        {rows.map((row) => (
-          <PlaceRow
-            key={row.id}
-            id={row.id}
-            name={row.name}
-            count={row.count}
-            siblings={rows}
-            onRename={onUpsert}
-            onRemove={onRemove}
-            onRemoved={() => addBox.current?.querySelector("input")?.focus()}
+    <Group label={copy.title} id={headingId}>
+      {rows.map((row) => (
+        <PlaceRow
+          key={row.id}
+          id={row.id}
+          name={row.name}
+          count={row.count}
+          siblings={rows}
+          onRename={onUpsert}
+          onRemove={onRemove}
+          onRemoved={() => addBox.current?.querySelector("input")?.focus()}
+        />
+      ))}
+      <div ref={addBox} class="flex flex-col gap-2 py-2">
+        <label for={fieldId} class="sr-only">
+          {copy.newLabel}
+        </label>
+        <div class="flex items-center gap-2">
+          <TextField
+            id={fieldId}
+            placeholder={copy.newLabel}
+            value={draft}
+            class="min-w-0 flex-1"
+            onInput={(event) => {
+              setDraft(event.currentTarget.value);
+              setError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void add();
+              }
+            }}
           />
-        ))}
-        <div ref={addBox} class="flex flex-col gap-2 py-2">
-          <label for={fieldId} class="sr-only">
-            {copy.newLabel}
-          </label>
-          <div class="flex items-center gap-2">
-            <TextField
-              id={fieldId}
-              label={copy.newLabel}
-              placeholder={copy.newLabel}
-              value={draft}
-              class="min-w-0 flex-1"
-              onInput={(event) => {
-                setDraft(event.currentTarget.value);
-                setError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void add();
-                }
-              }}
-            />
-            <Button
-              class="min-h-12"
-              aria-label={copy.addLabel}
-              disabled={draft.trim() === "" || busy}
-              onClick={() => void add()}
-            >
-              Adicionar
-            </Button>
-          </div>
-          {error !== null ? (
-            <p role="alert" class="text-[12px] font-semibold text-accent-700">
-              {error}
-            </p>
-          ) : null}
+          <Button
+            class="min-h-12"
+            aria-label={copy.addLabel}
+            disabled={draft.trim() === "" || busy}
+            onClick={() => void add()}
+          >
+            Adicionar
+          </Button>
         </div>
+        {error !== null ? <ErrorText>{error}</ErrorText> : null}
       </div>
-    </section>
+    </Group>
   );
 }
 

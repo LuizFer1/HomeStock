@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 import { describeError } from "../session/session";
 import { Button } from "../ui/button";
+import { ErrorText } from "../ui/error-text";
 import { TextField } from "../ui/text-field";
 
 export interface LeaveSectionProps {
@@ -80,18 +81,13 @@ export function LeaveSection({ onLeave }: LeaveSectionProps) {
       </label>
       <TextField
         id={inputId}
-        label={`Digite ${CONFIRMATION} para confirmar`}
         value={typed}
         autocomplete="off"
         autocapitalize="characters"
         disabled={busy}
         onInput={(event) => setTyped(event.currentTarget.value)}
       />
-      {error !== null ? (
-        <p role="alert" class="mt-2 text-[12px] font-semibold text-accent-700">
-          {error}
-        </p>
-      ) : null}
+      {error !== null ? <ErrorText class="mt-2">{error}</ErrorText> : null}
       <div class="mt-3 flex flex-col gap-1">
         <Button block disabled={typed !== CONFIRMATION || busy} onClick={() => void leave()}>
           Apagar dados deste aparelho

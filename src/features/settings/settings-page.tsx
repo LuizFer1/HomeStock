@@ -8,9 +8,11 @@ import {
   type PrefValues,
 } from "../../domain/model/prefs";
 import { describeError, type Session } from "../session/session";
+import { localDate } from "../session/today";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Chip } from "../ui/chip";
+import { ErrorText } from "../ui/error-text";
 import { IconButton } from "../ui/icon-button";
 import { MEMBER_COLOR_STYLE } from "../ui/member-color";
 import { SwitchRow } from "../ui/switch-row";
@@ -27,17 +29,6 @@ export interface SettingsPageProps {
   onEditProfile: () => void;
   onOpenPlaces: () => void;
   onLeave: () => Promise<void>;
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-/** dd/mm/aaaa no fuso local; null para ISO invalido. */
-function localDate(iso: string): string | null {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
 
 export function SettingsPage({
@@ -84,11 +75,7 @@ export function SettingsPage({
 
   return (
     <main class="no-scrollbar px-[22px] pt-11 pb-7">
-      {error !== null ? (
-        <p role="alert" class="mb-3 text-[13px] font-semibold text-accent-700">
-          {error}
-        </p>
-      ) : null}
+      {error !== null ? <ErrorText class="mb-3">{error}</ErrorText> : null}
       <div class="flex items-center gap-3">
         <IconButton label="Voltar" onClick={onBack}>
           <ChevronLeft size={20} strokeWidth={2.75} />

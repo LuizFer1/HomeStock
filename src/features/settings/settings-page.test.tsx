@@ -57,9 +57,24 @@ describe("SettingsPage", () => {
     const { store } = await setup();
     vi.spyOn(store, "setPref").mockRejectedValue(new Error("disco cheio"));
     fireEvent.click(screen.getByRole("button", { name: /Nome da casa/ }));
+    fireEvent.input(screen.getByLabelText("Nome da casa"), { target: { value: "Lar" } });
     fireEvent.click(screen.getByRole("button", { name: /^Salvar/ }));
     expect((await screen.findByRole("alert")).textContent).toContain("disco cheio");
     expect(screen.getByLabelText("Nome da casa")).toBeTruthy();
+  });
+
+  it("salvar o mesmo texto fecha o campo sem gravar", async () => {
+    const { store } = await setup();
+    const spy = vi.spyOn(store, "setPref");
+    fireEvent.click(screen.getByRole("button", { name: /Nome da casa/ }));
+    fireEvent.input(screen.getByLabelText("Nome da casa"), { target: { value: "  " } });
+    fireEvent.click(screen.getByRole("button", { name: /^Salvar/ }));
+    expect(screen.queryByLabelText("Nome da casa")).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Nome da casa/ }));
+    fireEvent.input(screen.getByLabelText("Nome da casa"), { target: { value: "Lar" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Salvar/ }));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith("houseName", "Lar"));
   });
 
   it("falha ao gravar um switch mostra o alerta na pagina", async () => {

@@ -6,6 +6,7 @@ import { describeError } from "../session/session";
 import { Avatar } from "../ui/avatar";
 import { BTN_SECONDARY, Button } from "../ui/button";
 import { ColorSwatches } from "../ui/color-swatches";
+import { ErrorText } from "../ui/error-text";
 import { IconButton } from "../ui/icon-button";
 import { MEMBER_COLOR_STYLE } from "../ui/member-color";
 import { TextField } from "../ui/text-field";
@@ -270,11 +271,7 @@ export function MemberWizard({
           </div>
         )}
 
-        {error !== null && (
-          <p role="alert" class="mt-4 font-semibold text-[14px] text-accent-700">
-            {error}
-          </p>
-        )}
+        {error !== null && <ErrorText class="mt-4">{error}</ErrorText>}
       </main>
 
       <div class="shrink-0 px-[22px] pt-2.5 pb-6">
