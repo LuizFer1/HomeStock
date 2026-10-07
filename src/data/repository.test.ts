@@ -299,3 +299,93 @@ describe("preferencias", () => {
     expect(await db.prefs.count()).toBe(0);
   });
 });
+
+describe("preco no cadastro e validade na reposicao", () => {
+  it("createItem com preco grava restock e Price, sem initial", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe(), 3, 4290);
+    const movements = await db.movements.toArray();
+    expect(movements).toHaveLength(1);
+    expect(movements[0]).toMatchObject({ itemId: item.id, delta: 3, reason: "restock" });
+    const prices = await db.prices.toArray();
+    expect(prices).toHaveLength(1);
+    expect(prices[0]).toMatchObject({
+      itemId: item.id,
+      unitPriceMinor: 4290,
+      qty: 3,
+      on: "2026-10-06",
+      movementId: movements[0]?.id,
+    });
+  });
+
+  it("createItem recusa preco sem quantidade ou invalido e nao grava item", async () => {
+    const { db, repo } = await openTestRepository();
+    await expect(repo.createItem(cafe(), 0, 4290)).rejects.toThrow(/quantidade inicial >= 1/);
+    await expect(repo.createItem(cafe(), 2, -1)).rejects.toThrow();
+    await expect(repo.createItem(cafe(), 2, 1.5)).rejects.toThrow();
+    expect(await db.items.count()).toBe(0);
+  });
+
+  it("createItem sem preco continua com initial e nenhum preco", async () => {
+    const { db, repo } = await openTestRepository();
+    await repo.createItem(cafe(), 2);
+    expect((await db.movements.toArray()).map((m) => m.reason)).toEqual(["initial"]);
+    expect(await db.prices.count()).toBe(0);
+  });
+
+  it("restock sem validade nova devolve expiry igual e nao regrava o item", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe({ expiresAt: "2026-12-01" }), 2);
+    const { expiry } = await repo.restock(item.id, 1);
+    expect(expiry).toEqual({ before: "2026-12-01", after: "2026-12-01" });
+    expect((await db.items.get(item.id))?.updatedAt).toBe(item.updatedAt);
+  });
+
+  it("restock mantem a validade mais proxima quando ha estoque", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe({ expiresAt: "2026-12-01" }), 2);
+    const { movement, expiry } = await repo.restock(item.id, 1, undefined, "2027-03-01");
+    expect(expiry).toEqual({ before: "2026-12-01", after: "2026-12-01" });
+    expect((await db.items.get(item.id))?.expiresAt).toBe("2026-12-01");
+    expect(movement.id).toBeTruthy();
+  });
+
+  it("restock troca a validade com 0 unidades e com validade nula", async () => {
+    const { db, repo } = await openTestRepository();
+    const empty = await repo.createItem(cafe({ expiresAt: "2026-12-01" }));
+    const r1 = await repo.restock(empty.id, 1, undefined, "2027-03-01");
+    expect(r1.expiry).toEqual({ before: "2026-12-01", after: "2027-03-01" });
+    expect((await db.items.get(empty.id))?.expiresAt).toBe("2027-03-01");
+    expect((await db.items.get(empty.id))?.updatedAt).toBe(r1.movement.updatedAt);
+
+    const noDate = await repo.createItem(cafe({ expiresAt: null, ean: null }), 2);
+    const r2 = await repo.restock(noDate.id, 1, undefined, "2027-03-01");
+    expect(r2.expiry).toEqual({ before: null, after: "2027-03-01" });
+    expect((await db.items.get(noDate.id))?.expiresAt).toBe("2027-03-01");
+  });
+
+  it("undoMovement com expiry devolve a validade que a reposicao trocou", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe({ expiresAt: "2026-12-01" }));
+    const { movement, expiry } = await repo.restock(item.id, 1, 4290, "2027-03-01");
+    await repo.undoMovement(movement.id, expiry);
+    expect((await db.items.get(item.id))?.expiresAt).toBe("2026-12-01");
+  });
+
+  it("undoMovement nao desfaz validade mudada depois por outra tela", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe({ expiresAt: "2026-12-01" }));
+    const { movement, expiry } = await repo.restock(item.id, 1, undefined, "2027-03-01");
+    await repo.updateItem(item.id, { expiresAt: "2027-05-01" });
+    await repo.undoMovement(movement.id, expiry);
+    expect((await db.items.get(item.id))?.expiresAt).toBe("2027-05-01");
+  });
+
+  it("undoMovement sem expiry nao mexe no item", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe({ expiresAt: "2026-12-01" }));
+    const { movement } = await repo.restock(item.id, 1, undefined, "2027-03-01");
+    await repo.undoMovement(movement.id);
+    expect((await db.items.get(item.id))?.expiresAt).toBe("2027-03-01");
+  });
+});

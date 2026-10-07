@@ -105,3 +105,19 @@ export function normalizeItemDraft(draft: Draft<Item>): Draft<Item> {
     photo: draft.photo,
   };
 }
+
+/**
+ * Validade do item depois de uma reposicao. `expiresAt` e a unidade que vence
+ * primeiro: o pacote novo quase sempre vence depois do que ja esta na despensa,
+ * e sobrescrever esconderia o vencimento do velho.
+ */
+export function expiryAfterRestock(
+  current: string | null,
+  incoming: string | null,
+  qtyBefore: number,
+): string | null {
+  if (incoming === null) return current;
+  // Sem unidade velha (ou sem data conhecida dela), a nova e a que vence primeiro.
+  if (qtyBefore <= 0 || current === null) return incoming;
+  return incoming < current ? incoming : current;
+}

@@ -195,3 +195,45 @@ describe("create e save", () => {
     expect(session.data.value.movements).toHaveLength(before);
   });
 });
+
+describe("preco e reposicao do scanner", () => {
+  async function setup() {
+    const { session } = await openTestSession({ member: ANA });
+    return { session, store: createItemStore(session) };
+  }
+
+  it("create com preco grava restock e Price", async () => {
+    const { session, store } = await setup();
+    const item = await store.create(cafe(), 2, 4290);
+    const moves = session.data.value.movements.filter((m) => m.itemId === item.id);
+    expect(moves.map((m) => m.reason)).toEqual(["restock"]);
+    expect(session.data.value.prices).toMatchObject([
+      { itemId: item.id, unitPriceMinor: 4290, qty: 2 },
+    ]);
+  });
+
+  it("create com preco null grava initial", async () => {
+    const { session, store } = await setup();
+    const item = await store.create(cafe(), 2, null);
+    const moves = session.data.value.movements.filter((m) => m.itemId === item.id);
+    expect(moves.map((m) => m.reason)).toEqual(["initial"]);
+    expect(session.data.value.prices).toHaveLength(0);
+  });
+
+  it("restockScan grava restock com preco e undoRestock devolve tudo", async () => {
+    const { session, store } = await setup();
+    const item = await store.create(cafe({ expiresAt: "2026-12-01" }), 0);
+    const receipt = await store.restockScan(item.id, 3, 4290, "2027-03-01");
+    expect(receipt.expiry).toEqual({ before: "2026-12-01", after: "2027-03-01" });
+    const move = session.data.value.movements.find((m) => m.id === receipt.movementId);
+    expect(move).toMatchObject({ delta: 3, reason: "restock" });
+    expect(session.data.value.prices).toMatchObject([{ unitPriceMinor: 4290, qty: 3 }]);
+
+    await store.undoRestock(receipt);
+    expect(
+      session.data.value.movements.find((m) => m.id === receipt.movementId)?.deletedAt,
+    ).not.toBeNull();
+    expect(session.data.value.prices[0]?.deletedAt).not.toBeNull();
+    expect(session.data.value.items.find((i) => i.id === item.id)?.expiresAt).toBe("2026-12-01");
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeItemDraft } from "./item";
+import { expiryAfterRestock, normalizeItemDraft } from "./item";
 import { cafe } from "./item.fake";
 
 describe("normalizeItemDraft", () => {
@@ -118,5 +118,26 @@ describe("normalizeItemDraft", () => {
     const clean = normalizeItemDraft(draft);
     expect(draft).toEqual(copy);
     expect(clean).not.toBe(draft);
+  });
+});
+
+describe("expiryAfterRestock", () => {
+  it("sem validade nova mantem a atual", () => {
+    expect(expiryAfterRestock("2026-12-01", null, 2)).toBe("2026-12-01");
+    expect(expiryAfterRestock(null, null, 2)).toBeNull();
+  });
+
+  it("com estoque, vence primeiro a mais proxima", () => {
+    expect(expiryAfterRestock("2026-12-01", "2027-03-01", 2)).toBe("2026-12-01");
+    expect(expiryAfterRestock("2027-03-01", "2026-12-01", 2)).toBe("2026-12-01");
+  });
+
+  it("sem estoque ou sem data conhecida, a nova vale", () => {
+    expect(expiryAfterRestock("2026-12-01", "2027-03-01", 0)).toBe("2027-03-01");
+    expect(expiryAfterRestock(null, "2027-03-01", 2)).toBe("2027-03-01");
+  });
+
+  it("quantidade negativa se comporta como 0", () => {
+    expect(expiryAfterRestock("2026-12-01", "2027-03-01", -1)).toBe("2027-03-01");
   });
 });

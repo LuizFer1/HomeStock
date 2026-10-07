@@ -4,10 +4,16 @@ import { type Item, normalizeItemDraft } from "../../domain/model/item";
 import type { Movement } from "../../domain/model/movement";
 import type { Session } from "../session/session";
 
+export interface RestockReceipt {
+  movementId: Ulid;
+  /** Validade antes e depois da reposicao; iguais quando nada mudou. */
+  expiry: { before: string | null; after: string | null };
+}
+
 /** Comandos de item para as telas: formulario, apagar, devolver e o stepper do Detalhe. */
 export interface ItemStore {
-  /** Recusa EAN de outro item vivo: "O código {ean} já é de {nome}." */
-  create: (draft: ItemDraft, qty: number) => Promise<Item>;
+  /** Recusa EAN de outro item vivo. Com preco, a entrada e um restock com Price. */
+  create: (draft: ItemDraft, qty: number, unitPriceMinor?: number | null) => Promise<Item>;
   /** Uma `run`: updateItem e, com `qty` numero diferente da soma, adjustTo. */
   save: (id: Ulid, draft: ItemDraft, qty: number | null) => Promise<void>;
   remove: (id: Ulid) => Promise<void>;
@@ -17,6 +23,15 @@ export interface ItemStore {
   step: (id: Ulid, direction: 1 | -1) => Promise<Movement>;
   /** Desfaz um toque do stepper apagando o movimento (e o preco, se houver). */
   undo: (movementId: Ulid) => Promise<void>;
+  /** Reposicao do scanner: restock com preco e validade opcionais, numa transacao. */
+  restockScan: (
+    id: Ulid,
+    qty: number,
+    unitPriceMinor: number | null,
+    expiresAt: string | null,
+  ) => Promise<RestockReceipt>;
+  /** Apaga movimento e preco e devolve a validade se ninguem a mudou depois. */
+  undoRestock: (receipt: RestockReceipt) => Promise<void>;
 }
 
 /**
@@ -38,11 +53,11 @@ export function createItemStore(session: Session): ItemStore {
 
   return {
     // async: a validacao lanca como promise rejeitada, nao de forma sincrona.
-    async create(draft, qty) {
+    async create(draft, qty, unitPriceMinor) {
       const clean = normalizeItemDraft(draft);
       return session.run(async (repo) => {
         await assertEanFree(repo, clean.ean);
-        return repo.createItem(clean, qty);
+        return repo.createItem(clean, qty, unitPriceMinor ?? undefined);
       });
     },
     async save(id, draft, qty) {
@@ -75,6 +90,16 @@ export function createItemStore(session: Session): ItemStore {
     },
     async undo(movementId) {
       await session.run((repo) => repo.undoMovement(movementId));
+    },
+    // Fora da fila do step: a reposicao e um toque so, com trava na tela.
+    async restockScan(id, qty, unitPriceMinor, expiresAt) {
+      const r = await session.run((repo) =>
+        repo.restock(id, qty, unitPriceMinor ?? undefined, expiresAt),
+      );
+      return { movementId: r.movement.id, expiry: r.expiry };
+    },
+    async undoRestock(receipt) {
+      await session.run((repo) => repo.undoMovement(receipt.movementId, receipt.expiry));
     },
   };
 }

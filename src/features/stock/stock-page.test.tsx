@@ -13,11 +13,13 @@ import { StockPage } from "./stock-page";
 
 /** O Estoque nao usa o stepper; os fakes de `items` so precisam do tipo completo. */
 // Comandos que a pagina do Estoque nao usa: so remove e restore variam por teste.
-const NO_STEP: Pick<ItemStore, "create" | "save" | "step" | "undo"> = {
+const NO_STEP: Omit<ItemStore, "remove" | "restore"> = {
   create: () => Promise.reject(new Error("nao usado")),
   save: () => Promise.reject(new Error("nao usado")),
   step: () => Promise.reject(new Error("nao usado")),
   undo: async () => {},
+  restockScan: () => Promise.reject(new Error("nao usado")),
+  undoRestock: async () => {},
 };
 
 afterEach(() => {

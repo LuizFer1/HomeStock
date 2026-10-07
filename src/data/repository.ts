@@ -3,7 +3,13 @@ import { createRowClock, type RowClock, type Stamp } from "../domain/clock/row-c
 import { seedCategories, seedLocations } from "../domain/defaults/seeds";
 import type { RandomChunk, Ulid } from "../domain/ids/ulid";
 import { type BaseRow, type Draft, isAlive } from "../domain/model/base";
-import { type Category, type Item, type Location, normalizeItemDraft } from "../domain/model/item";
+import {
+  type Category,
+  expiryAfterRestock,
+  type Item,
+  type Location,
+  normalizeItemDraft,
+} from "../domain/model/item";
 import type { ListExtra } from "../domain/model/list-extra";
 import { type Member, type MemberDraft, normalizeMemberDraft } from "../domain/model/member";
 import type { Movement, MovementReason, Price } from "../domain/model/movement";
@@ -47,6 +53,28 @@ function assertCount(value: number, what: string): void {
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`${what} exige inteiro >= 1, recebeu ${value}`);
   }
+}
+
+function assertPrice(unitPriceMinor: number): void {
+  if (!Number.isInteger(unitPriceMinor) || unitPriceMinor < 0) {
+    throw new Error(`Preco exige centavos inteiros >= 0, recebeu ${unitPriceMinor}`);
+  }
+}
+
+/** Os campos editaveis do item, como o rascunho que `normalizeItemDraft` valida. */
+function draftOf(item: Item): ItemDraft {
+  return {
+    name: item.name,
+    size: item.size,
+    unit: item.unit,
+    categoryId: item.categoryId,
+    locationId: item.locationId,
+    min: item.min,
+    usualQty: item.usualQty,
+    expiresAt: item.expiresAt,
+    ean: item.ean,
+    photo: item.photo,
+  };
 }
 
 /**
@@ -125,6 +153,25 @@ export async function openRepository(deps: RepositoryDeps) {
     return movement;
   }
 
+  async function addPrice(
+    itemId: Ulid,
+    movement: Movement,
+    unitPriceMinor: number,
+    qty: number,
+    s: Stamp,
+  ): Promise<Price> {
+    const price: Price = {
+      ...fresh(s),
+      itemId,
+      unitPriceMinor,
+      qty,
+      on: deps.today(),
+      movementId: movement.id,
+    };
+    await db.prices.add(price);
+    return price;
+  }
+
   async function currentQty(itemId: Ulid): Promise<number> {
     return quantityOf(itemId, await db.movements.where("itemId").equals(itemId).toArray());
   }
@@ -175,16 +222,28 @@ export async function openRepository(deps: RepositoryDeps) {
       );
     },
 
-    async createItem(draft: ItemDraft, initialQty = 0): Promise<Item> {
+    async createItem(draft: ItemDraft, initialQty = 0, unitPriceMinor?: number): Promise<Item> {
       if (!Number.isInteger(initialQty) || initialQty < 0) {
         throw new Error(`Quantidade inicial exige inteiro >= 0, recebeu ${initialQty}`);
       }
+      if (unitPriceMinor !== undefined) {
+        assertPrice(unitPriceMinor);
+        if (initialQty < 1) {
+          throw new Error(`Preco exige quantidade inicial >= 1, recebeu ${initialQty}`);
+        }
+      }
       const clean = normalizeItemDraft(draft);
-      return db.transaction("rw", db.items, db.movements, db.meta, async () => {
+      return db.transaction("rw", db.items, db.movements, db.prices, db.meta, async () => {
         const s = await stamp();
         const item: Item = { ...fresh(s), ...clean };
         await db.items.add(item);
-        if (initialQty > 0) await addMovement(item.id, initialQty, "initial", s);
+        if (unitPriceMinor === undefined) {
+          if (initialQty > 0) await addMovement(item.id, initialQty, "initial", s);
+        } else {
+          // Com preco e uma compra: o preco fica ligado a um restock, como em toda reposicao.
+          const movement = await addMovement(item.id, initialQty, "restock", s);
+          await addPrice(item.id, movement, unitPriceMinor, initialQty, s);
+        }
         return item;
       });
     },
@@ -195,16 +254,7 @@ export async function openRepository(deps: RepositoryDeps) {
       return db.transaction("rw", db.items, db.meta, async () => {
         const item = await aliveItem(id);
         const clean = normalizeItemDraft({
-          name: item.name,
-          size: item.size,
-          unit: item.unit,
-          categoryId: item.categoryId,
-          locationId: item.locationId,
-          min: item.min,
-          usualQty: item.usualQty,
-          expiresAt: item.expiresAt,
-          ean: item.ean,
-          photo: item.photo,
+          ...draftOf(item),
           // undefined significa "inalterado", nao "apague o campo".
           ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)),
         });
@@ -230,29 +280,30 @@ export async function openRepository(deps: RepositoryDeps) {
       id: Ulid,
       qty: number,
       unitPriceMinor?: number,
-    ): Promise<{ movement: Movement; price: Price | null }> {
+      incomingExpiry: string | null = null,
+    ): Promise<{
+      movement: Movement;
+      price: Price | null;
+      expiry: { before: string | null; after: string | null };
+    }> {
       assertCount(qty, "Reposicao");
-      if (
-        unitPriceMinor !== undefined &&
-        (!Number.isInteger(unitPriceMinor) || unitPriceMinor < 0)
-      ) {
-        throw new Error(`Preco exige centavos inteiros >= 0, recebeu ${unitPriceMinor}`);
-      }
+      if (unitPriceMinor !== undefined) assertPrice(unitPriceMinor);
       return db.transaction("rw", db.items, db.movements, db.prices, db.meta, async () => {
-        await aliveItem(id);
+        const item = await aliveItem(id);
+        // Soma lida antes de gravar o movimento: e o que ja estava na despensa.
+        const qtyBefore = await currentQty(id);
+        const after = expiryAfterRestock(item.expiresAt, incomingExpiry, qtyBefore);
         const s = await stamp();
         const movement = await addMovement(id, qty, "restock", s);
-        if (unitPriceMinor === undefined) return { movement, price: null };
-        const price: Price = {
-          ...fresh(s),
-          itemId: id,
-          unitPriceMinor,
-          qty,
-          on: deps.today(),
-          movementId: movement.id,
-        };
-        await db.prices.add(price);
-        return { movement, price };
+        if (after !== item.expiresAt) {
+          const clean = normalizeItemDraft({ ...draftOf(item), expiresAt: after });
+          await db.items.put(touched(item, s, clean));
+        }
+        const price =
+          unitPriceMinor === undefined
+            ? null
+            : await addPrice(id, movement, unitPriceMinor, qty, s);
+        return { movement, price, expiry: { before: item.expiresAt, after } };
       });
     },
 
@@ -270,8 +321,11 @@ export async function openRepository(deps: RepositoryDeps) {
     },
 
     /** Desfaz um movimento e o preco que veio com ele. */
-    async undoMovement(movementId: Ulid): Promise<void> {
-      await db.transaction("rw", db.movements, db.prices, db.meta, async () => {
+    async undoMovement(
+      movementId: Ulid,
+      expiry?: { before: string | null; after: string | null },
+    ): Promise<void> {
+      await db.transaction("rw", db.items, db.movements, db.prices, db.meta, async () => {
         const movement = await db.movements.get(movementId);
         if (!isAlive(movement)) return;
         const s = await stamp();
@@ -280,6 +334,13 @@ export async function openRepository(deps: RepositoryDeps) {
         for (const price of prices) {
           if (price.movementId === movementId && isAlive(price)) {
             await db.prices.put(touched(price, s, { deletedAt: s.hlc }));
+          }
+        }
+        if (expiry !== undefined && expiry.before !== expiry.after) {
+          const item = await db.items.get(movement.itemId);
+          // Validade mudada depois por outra pessoa ou tela fica: o desfazer so devolve o que esta reposicao trocou.
+          if (isAlive(item) && item.expiresAt === expiry.after) {
+            await db.items.put(touched(item, s, { expiresAt: expiry.before }));
           }
         }
       });

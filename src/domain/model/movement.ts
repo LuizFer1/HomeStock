@@ -17,7 +17,8 @@ export interface Movement extends BaseRow {
 }
 
 /**
- * Preco pago numa reposicao. So de insercao, como `Movement`. E o historico
+ * Preco pago numa compra: reposicao ou cadastro com preco, sempre ligado a um
+ * movimento `restock`. So de insercao, como `Movement`. E o historico
  * que a futura feature "sua inflacao" vai ler.
  */
 export interface Price extends BaseRow {
