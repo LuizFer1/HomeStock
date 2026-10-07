@@ -98,6 +98,35 @@ describe("step e undo", () => {
     await expect(store.step(item.id, -1)).resolves.toMatchObject({ reason: "use" });
   });
 
+  it("undo emitido com um step pendente grava depois dele", async () => {
+    const { session, item, store } = await setup();
+    const used = await store.step(item.id, -1);
+    const log: string[] = [];
+    const real = session.run;
+    session.run = (command) =>
+      real((repo) =>
+        command(
+          new Proxy(repo, {
+            get(target, prop) {
+              const value = Reflect.get(target, prop);
+              if (typeof value !== "function") return value;
+              return (...args: unknown[]) => {
+                log.push(String(prop));
+                return value.apply(target, args);
+              };
+            },
+          }),
+        ),
+      );
+    const pending = store.step(item.id, -1);
+    const undone = store.undo(used.id);
+    await Promise.all([pending, undone]);
+    expect(log.filter((m) => m === "useItem" || m === "undoMovement")).toEqual([
+      "useItem",
+      "undoMovement",
+    ]);
+  });
+
   it("undo apaga o movimento", async () => {
     const { session, item, store } = await setup();
     const used = await store.step(item.id, -1);

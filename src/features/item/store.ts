@@ -96,7 +96,12 @@ export function createItemStore(session: Session): ItemStore {
       return next;
     },
     async undo(movementId, clearedMarkId = null) {
-      await session.run((repo) => repo.undoMovement(movementId, undefined, clearedMarkId));
+      // Na fila do step: um desfazer logo depois de um toque pendente grava na ordem dos toques.
+      const next = queue.then(() =>
+        session.run((repo) => repo.undoMovement(movementId, undefined, clearedMarkId)),
+      );
+      queue = next.catch(() => {});
+      await next;
     },
     // Fora da fila do step: a reposicao e um toque so, com trava na tela.
     async restockScan(id, qty, unitPriceMinor, expiresAt) {

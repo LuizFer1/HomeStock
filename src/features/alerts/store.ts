@@ -13,6 +13,8 @@ export interface AlertsStore {
   reopen: (keys: readonly string[]) => Promise<void>;
   /** Cartao que abriu o Detalhe ("Ver item"); a tela foca ao voltar e zera. */
   returnFocus: Signal<string | null>;
+  /** Erro por cartao (chave do alerta). Vive aqui porque "Ver item" desmonta a tela. */
+  errors: Signal<Record<string, string>>;
 }
 
 export function createAlertsStore(session: Session): AlertsStore {
@@ -36,5 +38,6 @@ export function createAlertsStore(session: Session): AlertsStore {
       await enqueue(() => session.run((repo) => repo.reopenAlerts(keys)));
     },
     returnFocus: signal<string | null>(null),
+    errors: signal<Record<string, string>>({}),
   };
 }

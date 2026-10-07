@@ -167,6 +167,37 @@ describe("AlertsPage", () => {
     await waitFor(() => expect(mark()).toBeUndefined());
   });
 
+  it("falha da acao move o foco para o erro do cartao, de novo a cada falha", async () => {
+    const { session, ctx } = await setup((s) => seedCafeIogurte(s, 3));
+    const key = `exp:${idOf(session, IOGURTE)}:2026-10-07`;
+    ctx.alerts.resolve = async () => {
+      throw new Error("banco indisponivel");
+    };
+    const box = () => document.querySelector<HTMLElement>(`[data-alert-error="${key}"]`);
+    fireEvent.click(screen.getByRole("button", { name: USE }));
+    await waitFor(() => expect(document.activeElement).toBe(box()));
+    // Foco sai e a segunda falha o traz de volta.
+    (screen.getByRole("heading", { level: 1 }) as HTMLElement).focus();
+    fireEvent.click(screen.getByRole("button", { name: USE }));
+    await waitFor(() => expect(document.activeElement).toBe(box()));
+  });
+
+  it("Ver item com resolve falhando ainda abre o Detalhe e guarda o erro do cartao", async () => {
+    const { session, ctx } = await setup(seedCafeIogurte);
+    const id = idOf(session, "Café em grãos");
+    ctx.alerts.resolve = async () => {
+      throw new Error("banco indisponivel");
+    };
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ver item, Café em grãos abaixo do mínimo" }),
+    );
+    await waitFor(() => expect(ctx.router.stack.value.at(-1)).toEqual({ kind: "item", id }));
+    cleanup();
+    // Ao voltar, o cartao ainda diz que nao foi resolvido.
+    render(<AlertsPage ctx={ctx} />);
+    expect(screen.getByText("banco indisponivel")).toBeTruthy();
+  });
+
   it("o erro some quando o alerta passa a resolvido", async () => {
     const { session, ctx } = await setup(seedCafeIogurte);
     const key = `exp:${idOf(session, IOGURTE)}:2026-10-07`;

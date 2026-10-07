@@ -49,7 +49,26 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
   // Trava por cartao: dois toques no mesmo cartao usariam duas unidades.
   const locks = useRef(new Set<string>());
   const [busy, setBusy] = useState<readonly string[]>([]);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const errors = alerts.errors.value;
+  // Conta as falhas: o erro que se repete move o foco de novo.
+  const [failures, setFailures] = useState(0);
+  const failedKey = useRef<string | null>(null);
+  function setError(key: string, message: string | null) {
+    const current = alerts.errors.peek();
+    if (message === null) {
+      if (!(key in current)) return;
+      const { [key]: _gone, ...rest } = current;
+      alerts.errors.value = rest;
+    } else {
+      alerts.errors.value = { ...current, [key]: message };
+    }
+  }
+  function fail(key: string, message: string) {
+    setError(key, message);
+    if (!mounted.current) return;
+    failedKey.current = key;
+    setFailures((n) => n + 1);
+  }
   const todayId = useId();
   const weekId = useId();
   const olderId = useId();
@@ -66,12 +85,18 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
     const resolved = new Set(
       [...list.today, ...list.week, ...list.older].filter((a) => a.resolved).map((a) => a.key),
     );
-    setErrors((e) => {
-      const stale = Object.keys(e).filter((k) => resolved.has(k));
-      if (stale.length === 0) return e;
-      return Object.fromEntries(Object.entries(e).filter(([k]) => !resolved.has(k)));
-    });
+    for (const key of Object.keys(alerts.errors.peek())) {
+      if (resolved.has(key)) setError(key, null);
+    }
   }, [list]);
+
+  useEffect(() => {
+    if (failures === 0 || failedKey.current === null) return;
+    const box = main.current?.querySelector<HTMLElement>(
+      `[data-alert-error="${failedKey.current}"]`,
+    );
+    box?.focus();
+  }, [failures]);
 
   useLayoutEffect(() => {
     mounted.current = true;
@@ -100,10 +125,7 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
     if (locks.current.has(key)) return;
     locks.current.add(key);
     setBusy((b) => [...b, key]);
-    setErrors((e) => {
-      const { [key]: _gone, ...rest } = e;
-      return rest;
-    });
+    setError(key, null);
     try {
       switch (action.kind) {
         case "use": {
@@ -120,10 +142,7 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
           } catch {
             // O uso ficou gravado e o alerta continua pendente: o desfazer ainda tem de existir.
             toast.show(`Usou 1 ${unit} de ${name}`, { label: "Desfazer", run: undoUse });
-            if (mounted.current) {
-              const msg = `Usou 1 ${unit}, mas não foi possível resolver o alerta.`;
-              setErrors((e) => ({ ...e, [key]: msg }));
-            }
+            fail(key, `Usou 1 ${unit}, mas não foi possível resolver o alerta.`);
             return;
           }
           toast.show(`Usou 1 ${unit} de ${name}`, {
@@ -156,10 +175,7 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
                 refocus(key);
               },
             });
-            if (mounted.current) {
-              const msg = `${item.name} entrou na lista, mas não foi possível resolver o alerta.`;
-              setErrors((e) => ({ ...e, [key]: msg }));
-            }
+            fail(key, `${item.name} entrou na lista, mas não foi possível resolver o alerta.`);
             return;
           }
           toast.show(`${item.name} entrou na lista`, {
@@ -174,7 +190,12 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
         }
         case "view": {
           const id = itemIdOf(alert);
-          await alerts.resolve(resolveKeys);
+          try {
+            await alerts.resolve(resolveKeys);
+          } catch (cause) {
+            // Abrir o item e o que a pessoa quis: o erro fica no cartao para quando ela voltar.
+            setError(key, describeError(cause));
+          }
           if (id !== null && mounted.current) {
             alerts.returnFocus.value = key;
             router.push({ kind: "item", id });
@@ -199,7 +220,7 @@ export function AlertsPage({ ctx }: AlertsPageProps): JSX.Element {
       }
       refocus(key);
     } catch (cause) {
-      if (mounted.current) setErrors((e) => ({ ...e, [key]: describeError(cause) }));
+      fail(key, describeError(cause));
     } finally {
       locks.current.delete(key);
       if (mounted.current) setBusy((b) => b.filter((k) => k !== key));

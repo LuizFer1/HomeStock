@@ -105,8 +105,11 @@ describe("AlertCard", () => {
     expect(button.disabled).toBe(true);
   });
 
-  it("erro aparece como alerta", () => {
-    show({ error: "Falhou." });
-    expect(screen.getByRole("alert").textContent).toBe("Falhou.");
+  it("erro aparece num contêiner focavel, sem role alert (o foco ja o anuncia)", () => {
+    const { view } = show({ error: "Falhou." });
+    const box = view.container.querySelector<HTMLElement>(`[data-alert-error="${exp.key}"]`);
+    expect(box?.getAttribute("tabindex")).toBe("-1");
+    expect(box?.textContent).toBe("Falhou.");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

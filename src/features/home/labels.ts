@@ -14,7 +14,11 @@ export function healthSubtitle(health: number | null): string {
 
 /** "82%" | "—". */
 export function healthPercent(health: number | null): string {
-  return health === null ? "—" : `${Math.round(health * 100)}%`;
+  if (health === null) return "—";
+  // Nunca "100%" sem estar cheio, nem "0%" com um arco desenhado.
+  const pct =
+    health >= 1 ? 100 : health <= 0 ? 0 : Math.min(99, Math.max(1, Math.round(health * 100)));
+  return `${pct}%`;
 }
 
 /** "86 itens · 71 em dia" | "1 item · 1 em dia". */

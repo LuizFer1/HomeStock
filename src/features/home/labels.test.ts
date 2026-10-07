@@ -20,6 +20,13 @@ describe("rotulos do Inicio", () => {
   it("percentual", () => {
     expect(healthPercent(0.824)).toBe("82%");
     expect(healthPercent(null)).toBe("—");
+    expect(healthPercent(1)).toBe("100%");
+    expect(healthPercent(0)).toBe("0%");
+  });
+
+  it("nunca arredonda para 100% nem 0% quando nao e cheio nem vazio", () => {
+    expect(healthPercent(199 / 200)).toBe("99%");
+    expect(healthPercent(1 / 200)).toBe("1%");
   });
 
   it("linha de itens", () => {

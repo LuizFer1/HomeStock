@@ -91,7 +91,12 @@ export function AlertCard({
             Resolvido
           </span>
         )}
-        {error !== null && <ErrorText class="mt-2">{error}</ErrorText>}
+        {error !== null && (
+          // A tela move o foco para ca quando a acao falha: o leitor ja le a mensagem.
+          <div data-alert-error={alert.key} tabIndex={-1} class="mt-2">
+            <ErrorText alert={false}>{error}</ErrorText>
+          </div>
+        )}
       </div>
     </li>
   );

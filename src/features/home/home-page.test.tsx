@@ -138,6 +138,21 @@ describe("HomePage", () => {
     expect(ctx.home.returnFocus.value).toBeNull();
   });
 
+  it("remontar foca o contador vencendo e o botao dos moradores", async () => {
+    const { ctx } = await setup(seedIogurte);
+    for (const [saved, name] of [
+      ["counter-expiring", "1 vencendo"],
+      ["settings", "Ajustes"],
+    ] as const) {
+      cleanup();
+      ctx.home.returnFocus.value = saved;
+      render(<HomePage ctx={ctx} />);
+      expect(document.activeElement).toBe(screen.getByRole("button", { name }));
+      expect(ctx.home.returnFocus.value).toBeNull();
+      cleanup();
+    }
+  });
+
   it("mostra so 4 linhas em Acabando, esgotados primeiro", async () => {
     await setup(async (s) => {
       for (const name of ["A", "B", "C", "D"]) {
