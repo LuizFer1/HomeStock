@@ -23,7 +23,8 @@ import { gzipSync } from "node:zlib";
  *           o teto: medida final da fatia 3 em 69.17kb (63.25kb JS + 5.91kb CSS),
  *           5.83kb de folga. Fatia 4 sem elevar o teto: dados do scanner e
  *           camera/leitor no shell (o zxing fica fora) em 70.89kb (64.96kb JS +
- *           5.93kb CSS), 4.11kb de folga.
+ *           5.93kb CSS); com visor, preco, reposicao e a tela Adicionar, medida
+ *           final da fatia 4 em 73.91kb (67.75kb JS + 6.17kb CSS), 1.09kb de folga.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact. O leitor zxing

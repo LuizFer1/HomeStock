@@ -259,6 +259,17 @@ describe("ItemForm preco e scanner", () => {
     expect(document.activeElement).toBe(field("Nome"));
   });
 
+  it("o mesmo codigo lido de novo (scanSeq) preenche e foca outra vez", async () => {
+    const { rerender } = await setup();
+    rerender({ scannedEan: "7891234567890", scanSeq: 1 });
+    await waitFor(() => expect(field("Código de barras").value).toBe("7891234567890"));
+    type("Código de barras", "123");
+    field("Código de barras").focus();
+    rerender({ scannedEan: "7891234567890", scanSeq: 2 });
+    await waitFor(() => expect(field("Código de barras").value).toBe("7891234567890"));
+    expect(document.activeElement).toBe(field("Nome"));
+  });
+
   it("onEanCommit avisa so com 8 a 14 digitos", async () => {
     const onEanCommit = vi.fn();
     await setup({ props: { onEanCommit } });

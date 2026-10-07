@@ -47,11 +47,32 @@ describe("renderScreen", () => {
     await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
   });
 
-  it("item-new mostra o formulario de criar", async () => {
+  it("scan mostra Novo item e o aviso de camera do ambiente padrao", async () => {
     const { ctx } = await setup();
+    ctx.router.push({ kind: "scan" });
+    render(renderScreen({ kind: "scan" }, ctx));
+    expect(screen.getByRole("heading", { level: 1, name: "Novo item" })).toBeTruthy();
+    expect(
+      await screen.findByText("Este navegador não abre a câmera. Digite o código no campo abaixo."),
+    ).toBeTruthy();
+  });
+
+  it("item-new mostra o formulario de criar com a camera parada", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const openCamera = vi.fn(async () => Promise.reject(new Error("nao devia abrir")));
+    const { ctx } = testContext(session, {
+      scanner: {
+        openCamera,
+        attach: async () => {},
+        loadReader: async () => ({ read: async () => null }),
+      },
+    });
     ctx.router.push({ kind: "item-new" });
     render(renderScreen({ kind: "item-new" }, ctx));
     expect(screen.getByRole("heading", { level: 1, name: "Novo item" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ler código" })).toBeTruthy();
+    await Promise.resolve();
+    expect(openCamera).not.toHaveBeenCalled();
   });
 
   it("item-edit mostra o formulario com o item", async () => {

@@ -36,6 +36,8 @@ export interface ItemFormProps {
   top?: ComponentChildren;
   /** Codigo lido pela camera: preenche o campo e leva o foco ao Nome. */
   scannedEan?: string | null;
+  /** Conta as leituras: o mesmo codigo lido de novo ainda preenche o campo e foca o Nome. */
+  scanSeq?: number;
   /** Codigo de 8 a 14 digitos confirmado no campo (change: blur ou Enter). */
   onEanCommit?: (ean: string) => void;
   /** Criar: "name" (padrao) ou "heading" (camera abrindo: o teclado cobriria o visor). */
@@ -110,7 +112,8 @@ function initialValues(
   };
 }
 
-function Field(props: { id: string; label: string; children: ComponentChildren }) {
+/** Campo com rotulo visivel (`.field` do markup); a reposicao usa o mesmo. */
+export function Field(props: { id: string; label: string; children: ComponentChildren }) {
   return (
     <div class="min-w-0">
       <label htmlFor={props.id} class={LABEL}>
@@ -159,6 +162,7 @@ export function ItemForm({
   id,
   top,
   scannedEan,
+  scanSeq,
   onEanCommit,
   initialFocus,
   screenKind,
@@ -230,7 +234,7 @@ export function ItemForm({
     if (scannedEan === undefined || scannedEan === null || scannedEan === "") return;
     setEan(scannedEan);
     document.getElementById(nameId)?.focus();
-  }, [scannedEan]);
+  }, [scannedEan, scanSeq]);
 
   useEffect(() => {
     if (failures === 0 || error === null) return;

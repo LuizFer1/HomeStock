@@ -54,11 +54,11 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
 
   const top = router.top.value;
   const tab = router.tab.value;
-  // A fatia 4 troca o destino para o scanner, que abre o mesmo formulario.
-  const openNewItem = () => {
+  // O FAB abre o scanner; sem camera, a mesma tela aceita o codigo digitado.
+  const openScanner = () => {
     // Do Estoque, como abrir um card: a lista volta na mesma posicao.
     if (tab === "stock") ctx.stock.scrollY.value = window.scrollY;
-    router.push({ kind: "item-new" });
+    router.push({ kind: "scan" });
   };
   const me = session.localMember.value;
 
@@ -99,7 +99,7 @@ export function App({ ctx, onboarding }: { ctx: AppContext; onboarding: Onboardi
       )}
       {banner}
       {toast}
-      {top === null && <TabBar active={tab} onSelect={router.selectTab} onScan={openNewItem} />}
+      {top === null && <TabBar active={tab} onSelect={router.selectTab} onScan={openScanner} />}
     </div>
   );
 }

@@ -212,7 +212,7 @@ describe("App", () => {
     const { router } = setup(session);
     fireEvent.click(screen.getByRole("button", { name: "Escanear" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Novo item" })).toBeTruthy();
-    expect(router.stack.value.map((s) => s.kind)).toEqual(["item-new"]);
+    expect(router.stack.value.map((s) => s.kind)).toEqual(["scan"]);
     fireEvent.input(screen.getByLabelText("Nome"), { target: { value: "Arroz" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar 1 un" }));
     expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();

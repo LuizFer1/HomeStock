@@ -3,6 +3,7 @@ import type { AppContext } from "./app-context";
 import { ItemDetailPage } from "./features/item/detail-page";
 import { ItemForm } from "./features/item/item-form";
 import { MemberWizard } from "./features/onboarding/member-wizard";
+import { AddItemPage } from "./features/scanner/add-item-page";
 import { PlacesPage } from "./features/settings/places-page";
 import { SettingsPage } from "./features/settings/settings-page";
 import { closeIfStill, type Screen } from "./features/shell/route";
@@ -64,7 +65,9 @@ export const SCREENS = {
   // Sem id nao ha item a mostrar: null cai no UnknownScreen e volta.
   item: (s, ctx) => (s.id ? <ItemDetailPage ctx={ctx} id={s.id} /> : null),
   "item-edit": (s, ctx) => (s.id ? <ItemForm ctx={ctx} mode="edit" id={s.id} /> : null),
-  "item-new": (_s, ctx) => <ItemForm ctx={ctx} mode="create" />,
+  // FAB Escanear: a camera abre ao montar. Estoque vazio: a mesma tela, camera parada.
+  scan: (_s, ctx) => <AddItemPage ctx={ctx} kind="scan" />,
+  "item-new": (_s, ctx) => <AddItemPage ctx={ctx} kind="item-new" />,
 } as const satisfies Readonly<Record<string, ScreenRender>>;
 
 export type ScreenKind = keyof typeof SCREENS;

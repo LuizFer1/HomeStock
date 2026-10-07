@@ -23,5 +23,6 @@ describe("maskPrice", () => {
   it("corta em sete digitos", () => {
     expect(maskPrice("123456789").minor).toBe(1234567);
     expect(MAX_PRICE_MINOR).toBe(9_999_999);
+    expect(maskPrice("9".repeat(12)).minor).toBe(MAX_PRICE_MINOR);
   });
 });
