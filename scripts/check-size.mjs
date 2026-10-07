@@ -14,8 +14,9 @@ import { gzipSync } from "node:zlib";
  *           mais a sessao com signals (48.84kb medidos). Os 6.16kb de folga sao
  *           deliberados: onboarding, ajustes e CSV ainda entram nesta fatia.
  *   65kb  — fatia 2, Ajustes: tela de ajustes, edicao de perfil e linhas editaveis
- *           (56.02kb medidos: 51.59kb JS + 4.43kb CSS), ainda faltam categorias e
- *           locais, CSV e sair da casa.
+ *           (56.02kb medidos: 51.59kb JS + 4.43kb CSS). Categorias e locais, CSV e
+ *           sair da casa entraram depois, sem elevar o teto: medida final da fatia 2
+ *           em 59.15kb (54.67kb JS + 4.48kb CSS), 5.85kb de folga.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact.
