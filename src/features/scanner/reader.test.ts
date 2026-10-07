@@ -116,7 +116,22 @@ describe("loadBarcodeReader", () => {
         createZxingReader: async () => Promise.reject(new Error("wasm")),
       })),
     });
-    await expect(loadBarcodeReader(d.deps)).rejects.toBeInstanceOf(ScannerUnavailableError);
+    const error = await loadBarcodeReader(d.deps).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ScannerUnavailableError);
+    expect((error as ScannerUnavailableError).offline).toBe(false);
+    expect(d.onStale).toHaveBeenCalledOnce();
+  });
+
+  it("falha do .wasm offline: indisponivel offline, sem procurar versao", async () => {
+    const d = deps({
+      isOnline: () => false,
+      loadZxing: vi.fn(async () => ({
+        createZxingReader: async () => Promise.reject(new Error("wasm")),
+      })),
+    });
+    const error = await loadBarcodeReader(d.deps).catch((e: unknown) => e);
+    expect((error as ScannerUnavailableError).offline).toBe(true);
+    expect(d.onStale).not.toHaveBeenCalled();
   });
 });
 

@@ -18,7 +18,10 @@ export function fakeStream(): FakeStream {
 
 export interface FakeScanner {
   env: ScannerEnv;
-  /** Cada openCamera bem-sucedido, na ordem. */
+  /**
+   * Cada openCamera bem-sucedido do padrao, na ordem. Com `overrides.openCamera`
+   * fica vazio: o stream e de quem trocou a funcao.
+   */
   streams: FakeStream[];
   /** Fila de leituras: cada read() tira a primeira; vazia devolve null. */
   codes: Array<string | null>;

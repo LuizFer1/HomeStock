@@ -20,8 +20,10 @@ import { gzipSync } from "node:zlib";
  *   75kb  — fatia 3, Estoque: lista com busca, filtros, cards com long-press,
  *           action sheet e toast com desfazer (65.10kb medidos: 59.43kb JS +
  *           5.67kb CSS). Detalhe e formulario de item entraram depois, sem elevar
- *           o teto: medida final da fatia 3 em 69.38kb (63.46kb JS + 5.91kb CSS),
- *           5.62kb de folga.
+ *           o teto: medida final da fatia 3 em 69.17kb (63.25kb JS + 5.91kb CSS),
+ *           5.83kb de folga. Fatia 4 sem elevar o teto: dados do scanner e
+ *           camera/leitor no shell (o zxing fica fora) em 70.89kb (64.96kb JS +
+ *           5.93kb CSS), 4.11kb de folga.
  *
  * Service worker e runtime do Workbox nao entram: sao o preco de offline e
  * instalabilidade, nao do first paint. Ver isAppShellArtifact. O leitor zxing
