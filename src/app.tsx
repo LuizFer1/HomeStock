@@ -1,4 +1,6 @@
 import { useEffect } from "preact/hooks";
+import { MemberWizard } from "./features/onboarding/member-wizard";
+import type { OnboardingStore } from "./features/onboarding/store";
 import type { Session } from "./features/session/session";
 import type { Router, Screen, Tab } from "./features/shell/route";
 import { TabBar } from "./features/shell/tab-bar";
@@ -33,10 +35,14 @@ export function App({
   router,
   update,
   session,
+  onboarding,
+  processFile,
 }: {
   router: Router;
   update: UpdateStore;
   session: Session;
+  onboarding: OnboardingStore;
+  processFile: (file: Blob) => Promise<string>;
 }) {
   const status = session.status.value;
 
@@ -55,9 +61,19 @@ export function App({
     );
   }
 
+  const banner = update.ready.value && <UpdateBanner onApply={update.apply} />;
+
+  if (onboarding.needsOnboarding.value) {
+    return (
+      <div class="mx-auto min-h-dvh max-w-[480px]">
+        <MemberWizard mode="create" onSubmit={onboarding.complete} processFile={processFile} />
+        {banner}
+      </div>
+    );
+  }
+
   const top = router.top.value;
   const tab = router.tab.value;
-  const banner = update.ready.value && <UpdateBanner onApply={update.apply} />;
 
   if (top !== null) {
     return (

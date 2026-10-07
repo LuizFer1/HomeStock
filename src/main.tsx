@@ -3,6 +3,9 @@ import { render } from "preact";
 import { App } from "./app";
 import { HomeStockDb } from "./data/db";
 import { cryptoRandomChunk } from "./domain/ids/ulid";
+import { createOnboardingStore } from "./features/onboarding/store";
+import { AVATAR_PHOTO, processPhoto } from "./features/photo/photo";
+import { browserPhotoDeps } from "./features/photo/photo-canvas";
 import { createSession } from "./features/session/session";
 import { localToday } from "./features/session/today";
 import { createRouter } from "./features/shell/route";
@@ -45,6 +48,8 @@ const session = createSession({
 });
 void session.init();
 
+const onboarding = createOnboardingStore(session);
+
 const router = createRouter(window.history);
 window.addEventListener("popstate", router.onPopState);
 
@@ -57,4 +62,13 @@ document.addEventListener("visibilitychange", () => {
   if (session.status.value === "ready") void session.reload().catch(() => {});
 });
 
-render(<App router={router} update={update} session={session} />, root);
+render(
+  <App
+    router={router}
+    update={update}
+    session={session}
+    onboarding={onboarding}
+    processFile={(file) => processPhoto(file, browserPhotoDeps, AVATAR_PHOTO)}
+  />,
+  root,
+);

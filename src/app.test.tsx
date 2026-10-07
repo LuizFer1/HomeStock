@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { openTestDb, seededRandom, testClock } from "./data/test-db.fake";
+import { createOnboardingStore } from "./features/onboarding/store";
 import { createSession, type Session } from "./features/session/session";
 import { ANA, openTestSession } from "./features/session/test-session.fake";
 import { createRouter } from "./features/shell/route";
@@ -18,7 +19,15 @@ function setup(session: Session, ready = false) {
     apply: () => {},
     version: null,
   };
-  render(<App router={router} update={update} session={session} />);
+  render(
+    <App
+      router={router}
+      update={update}
+      session={session}
+      onboarding={createOnboardingStore(session)}
+      processFile={async () => "data:image/webp;base64,AAA"}
+    />,
+  );
   return { router, history };
 }
 
@@ -95,5 +104,18 @@ describe("App", () => {
     await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(2));
     router.onPopState();
     expect(router.stack.value).toEqual([]);
+  });
+
+  it("sem morador mostra o wizard sem tab bar e completar abre a casca", async () => {
+    const { session } = await openTestSession();
+    setup(session);
+    expect(screen.getByText("Como podemos te chamar?")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Estoque" })).toBeNull();
+    fireEvent.input(screen.getByLabelText("Seu nome"), { target: { value: "Ana" } });
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Entrar no HomeStock" }));
+    expect(await screen.findByRole("heading", { name: "Início" })).toBeTruthy();
   });
 });
