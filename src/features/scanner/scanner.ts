@@ -80,7 +80,15 @@ export function createScanner({ env, video, onCode }: ScannerOptions): Scanner {
       // Para antes de entregar: evita ler o mesmo pacote de novo e apaga a luz ja.
       halt();
       state.value = { phase: "idle" };
-      onCode(code);
+      try {
+        onCode(code);
+      } catch (cause) {
+        // tick roda num setTimeout sem dono: um throw aqui viraria rejeicao nao tratada.
+        // Relanca fora da promise para o erro chegar ao handler global como erro comum.
+        queueMicrotask(() => {
+          throw cause;
+        });
+      }
       return;
     }
     // O proximo so depois deste terminar: o zxing pode passar de 200 ms num aparelho fraco.

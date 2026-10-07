@@ -69,6 +69,37 @@ describe("createScanner", () => {
     expect(video.srcObject).toBeNull();
   });
 
+  it("onCode que lanca nao vira rejeicao nao tratada e a camera ja esta desligada", async () => {
+    const rethrows: Array<() => void> = [];
+    const micro = vi.spyOn(globalThis, "queueMicrotask").mockImplementation((cb) => {
+      rethrows.push(cb);
+    });
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const { fake, onCode, scanner } = setup();
+      fake.codes.push(EAN);
+      onCode.mockImplementation(() => {
+        throw new Error("pagina quebrou");
+      });
+      await scanner.start();
+      await vi.advanceTimersByTimeAsync(SCAN_INTERVAL_MS);
+      expect(onCode).toHaveBeenCalledWith(EAN);
+      expect(fake.streams[0]?.stop).toHaveBeenCalled();
+      expect(scanner.state.value).toEqual({ phase: "idle" });
+      // O erro segue vivo, relancado fora da promise.
+      expect(rethrows).toHaveLength(1);
+      expect(() => rethrows[0]?.()).toThrow("pagina quebrou");
+      // O Node so avisa rejeicao nao tratada depois de esvaziar as microtasks.
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      micro.mockRestore();
+    }
+  });
+
   it("start duas vezes seguidas abre uma camera so", async () => {
     const { fake, scanner } = setup();
     await Promise.all([scanner.start(), scanner.start()]);

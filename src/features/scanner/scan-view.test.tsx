@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScanView } from "./scan-view";
 import { SCAN_INTERVAL_MS } from "./scanner";
-import { fakeScanner, noCameraEnv } from "./scanner.fake";
+import { fakeScanner, fakeStream, noCameraEnv } from "./scanner.fake";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -22,6 +22,21 @@ function setVisibility(value: "hidden" | "visible") {
   document.dispatchEvent(new Event("visibilitychange"));
 }
 
+function video(): HTMLVideoElement {
+  const el = document.querySelector("video");
+  if (el === null) throw new Error("sem video");
+  return el;
+}
+
+/** Promise que o teste resolve quando quiser. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 /** Deixa as promises da abertura (camera, leitor, attach) assentarem. */
 async function settle() {
   await act(async () => {
@@ -35,9 +50,84 @@ describe("ScanView", () => {
     render(<ScanView env={fake.env} autoStart idleLabel="Ler código" onCode={vi.fn()} />);
     expect(screen.getByRole("group", { name: "Leitor de código de barras" })).toBeTruthy();
     expect(screen.getByText("Abrindo a câmera…")).toBeTruthy();
+    // Abrindo: invisivel, mas com layout para o play().
+    expect(video().classList.contains("opacity-0")).toBe(true);
+    expect(video().classList.contains("hidden")).toBe(false);
     await settle();
     expect(screen.getByText("Aponte para o código de barras")).toBeTruthy();
+    expect(video().classList.contains("opacity-0")).toBe(false);
+    expect(video().classList.contains("hidden")).toBe(false);
     expect(fake.openCamera).toHaveBeenCalledTimes(1);
+  });
+
+  it("parado o video sai do layout", () => {
+    const fake = fakeScanner();
+    render(<ScanView env={fake.env} autoStart={false} idleLabel="Ler código" onCode={vi.fn()} />);
+    expect(video().classList.contains("hidden")).toBe(true);
+  });
+
+  it("Ler código leva o foco ao visor, ja que o botao some", async () => {
+    const fake = fakeScanner();
+    render(<ScanView env={fake.env} autoStart={false} idleLabel="Ler código" onCode={vi.fn()} />);
+    const button = screen.getByRole("button", { name: "Ler código" });
+    button.focus();
+    fireEvent.click(button);
+    await settle();
+    expect(document.activeElement).toBe(
+      screen.getByRole("group", { name: "Leitor de código de barras" }),
+    );
+  });
+
+  it("esconder durante a abertura e voltar abre de novo", async () => {
+    const pending = deferred<MediaStream>();
+    const late = fakeStream();
+    const fresh = fakeStream();
+    const openCamera = vi
+      .fn<() => Promise<MediaStream>>()
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce(fresh.stream);
+    const fake = fakeScanner({ openCamera });
+    render(<ScanView env={fake.env} autoStart idleLabel="Ler código" onCode={vi.fn()} />);
+    act(() => setVisibility("hidden"));
+    pending.resolve(late.stream);
+    await settle();
+    expect(late.stop).toHaveBeenCalled();
+    act(() => setVisibility("visible"));
+    await settle();
+    expect(openCamera).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Aponte para o código de barras")).toBeTruthy();
+    expect(fresh.stop).not.toHaveBeenCalled();
+  });
+
+  it("desmontar com a camera ainda abrindo para o stream que chega depois", async () => {
+    const pending = deferred<MediaStream>();
+    const late = fakeStream();
+    const fake = fakeScanner({ openCamera: () => pending.promise });
+    const { unmount } = render(
+      <ScanView env={fake.env} autoStart idleLabel="Ler código" onCode={vi.fn()} />,
+    );
+    unmount();
+    pending.resolve(late.stream);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(late.stop).toHaveBeenCalled();
+    expect(fake.attach).not.toHaveBeenCalled();
+  });
+
+  it("pagehide durante a abertura para o stream que chega depois", async () => {
+    const pending = deferred<MediaStream>();
+    const late = fakeStream();
+    const fake = fakeScanner({ openCamera: () => pending.promise });
+    render(<ScanView env={fake.env} autoStart idleLabel="Ler código" onCode={vi.fn()} />);
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    pending.resolve(late.stream);
+    await settle();
+    expect(late.stop).toHaveBeenCalled();
+    expect(fake.attach).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Ler código" })).toBeTruthy();
   });
 
   it("lido um codigo chama onCode, para a track e mostra o botao", async () => {
@@ -145,8 +235,14 @@ describe("ScanView", () => {
     expect(screen.getByRole("alert").textContent).toBe(
       "Sem permissão para usar a câmera. Libere nas configurações do navegador ou digite o código no campo abaixo.",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
+    const retry = screen.getByRole("button", { name: "Tentar de novo" });
+    retry.focus();
+    fireEvent.click(retry);
     await settle();
     expect(fake.openCamera).toHaveBeenCalledTimes(2);
+    // O botao sumiu e voltou (erro de novo): o foco ficou no visor, nao no body.
+    expect(document.activeElement).toBe(
+      screen.getByRole("group", { name: "Leitor de código de barras" }),
+    );
   });
 });

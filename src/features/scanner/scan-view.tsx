@@ -30,11 +30,11 @@ export function ScanView({ env, autoStart, idleLabel, onCode }: ScanViewProps): 
       onCode: (ean) => onCodeRef.current(ean),
     }),
   );
-  // So no mount: autoStart descreve como a tela abriu, nao muda depois.
-  const autoStartRef = useRef(autoStart);
+  const group = useRef<HTMLFieldSetElement>(null);
 
+  // So no mount: autoStart descreve como a tela abriu; mudar depois nao reabre a camera.
   useEffect(() => {
-    if (autoStartRef.current) void scanner.start();
+    if (autoStart) void scanner.start();
     // Camera ligada fora da vista gasta bateria, mantem a luz verde acesa e prende o
     // hardware para outros apps: esconder a aba para tudo.
     let resume = false;
@@ -61,11 +61,21 @@ export function ScanView({ env, autoStart, idleLabel, onCode }: ScanViewProps): 
 
   const state = scanner.state.value;
   const live = state.phase === "starting" || state.phase === "scanning";
-  const start = () => void scanner.start();
+  const start = () => {
+    // O botao some ao abrir: o foco iria para o body; fica no proprio visor.
+    group.current?.focus();
+    void scanner.start();
+  };
+  // Em starting o video precisa de layout (display:none durante o play() atrapalha alguns
+  // navegadores); so fica invisivel ate o primeiro quadro.
+  const videoVisibility =
+    state.phase === "scanning" ? "" : state.phase === "starting" ? " opacity-0" : " hidden";
 
   return (
     // fieldset da o papel group (como o CountStepper); as classes de reset tiram borda e recuo.
     <fieldset
+      ref={group}
+      tabIndex={-1}
       aria-label="Leitor de código de barras"
       class="relative mx-0 mt-3 mb-0 grid h-[170px] min-w-0 place-items-center overflow-hidden rounded-[32px] border-0 bg-neutral-900 p-0"
     >
@@ -76,7 +86,7 @@ export function ScanView({ env, autoStart, idleLabel, onCode }: ScanViewProps): 
         muted
         playsInline
         aria-hidden="true"
-        class={`absolute inset-0 size-full object-cover${state.phase === "scanning" ? "" : " hidden"}`}
+        class={`absolute inset-0 size-full object-cover${videoVisibility}`}
       />
       {live && (
         <div aria-hidden="true" class="relative z-[1] h-[96px] w-[210px]">
