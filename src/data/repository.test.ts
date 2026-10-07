@@ -344,10 +344,10 @@ describe("preco no cadastro e validade na reposicao", () => {
   it("restock mantem a validade mais proxima quando ha estoque", async () => {
     const { db, repo } = await openTestRepository();
     const item = await repo.createItem(cafe({ expiresAt: "2026-12-01" }), 2);
-    const { movement, expiry } = await repo.restock(item.id, 1, undefined, "2027-03-01");
+    const { expiry } = await repo.restock(item.id, 1, undefined, "2027-03-01");
     expect(expiry).toEqual({ before: "2026-12-01", after: "2026-12-01" });
     expect((await db.items.get(item.id))?.expiresAt).toBe("2026-12-01");
-    expect(movement.id).toBeTruthy();
+    expect((await db.items.get(item.id))?.updatedAt).toBe(item.updatedAt);
   });
 
   it("restock troca a validade com 0 unidades e com validade nula", async () => {
@@ -362,6 +362,16 @@ describe("preco no cadastro e validade na reposicao", () => {
     const r2 = await repo.restock(noDate.id, 1, undefined, "2027-03-01");
     expect(r2.expiry).toEqual({ before: null, after: "2027-03-01" });
     expect((await db.items.get(noDate.id))?.expiresAt).toBe("2027-03-01");
+  });
+
+  it("reposicao em sequencia: desfazer a primeira devolve a validade original", async () => {
+    const { db, repo } = await openTestRepository();
+    const item = await repo.createItem(cafe({ expiresAt: "2026-12-01" }));
+    const a = await repo.restock(item.id, 1, undefined, "2027-03-01");
+    await repo.restock(item.id, 1, undefined, "2027-03-01");
+    await repo.undoMovement(a.movement.id, a.expiry);
+    // Comportamento atual: a validade ainda e a que A gravou, entao volta ao valor anterior a A.
+    expect((await db.items.get(item.id))?.expiresAt).toBe("2026-12-01");
   });
 
   it("undoMovement com expiry devolve a validade que a reposicao trocou", async () => {

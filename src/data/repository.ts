@@ -295,6 +295,8 @@ export async function openRepository(deps: RepositoryDeps) {
         const after = expiryAfterRestock(item.expiresAt, incomingExpiry, qtyBefore);
         const s = await stamp();
         const movement = await addMovement(id, qty, "restock", s);
+        // A linha inteira e regravada (LWW por linha): edicao concorrente de outro
+        // aparelho pode perder. So acontece quando a validade muda.
         if (after !== item.expiresAt) {
           const clean = normalizeItemDraft({ ...draftOf(item), expiresAt: after });
           await db.items.put(touched(item, s, clean));
