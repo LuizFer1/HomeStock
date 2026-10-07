@@ -2,7 +2,11 @@ import type { CheckoutReceipt } from "../../data/repository";
 import type { Ulid } from "../../domain/ids/ulid";
 import { isAlive } from "../../domain/model/base";
 import { type ListExtra, normalizeExtraName } from "../../domain/model/list-extra";
-import type { ShoppingEntry, ShoppingList } from "../../domain/projections/shopping";
+import {
+  checkedEntries,
+  type ShoppingEntry,
+  type ShoppingList,
+} from "../../domain/projections/shopping";
 import { foldText } from "../../domain/text/fold-text";
 import type { Session } from "../session/session";
 
@@ -72,12 +76,16 @@ export function createShoppingStore(session: Session): ShoppingStore {
       await session.run((repo) => repo.restoreItemMark(itemId));
     },
     checkout(list) {
-      const checked = [...list.auto, ...list.house].filter((e) => e.checked);
+      const checked = checkedEntries(list);
       const items = checked
         .filter((e) => e.kind === "item")
         .map((e) => ({ itemId: e.id, qty: e.qty, unitPriceMinor: e.priceMinor }));
       const extraIds = checked.filter((e) => e.kind === "extra").map((e) => e.id);
-      return session.run((repo) => repo.checkout({ items, extraIds }));
+      // Na mesma fila dos toques: o repor espera a marcacao pendente gravar, e o banco
+      // decide o que ainda esta marcado (a lista da tela so limita o conjunto).
+      const next = queue.then(() => session.run((repo) => repo.checkout({ items, extraIds })));
+      queue = next.catch(() => {});
+      return next;
     },
     async undoCheckout(receipt) {
       await session.run((repo) => repo.undoCheckout(receipt));

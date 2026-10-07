@@ -62,6 +62,8 @@ export interface CheckoutLine {
 }
 
 export interface CheckoutReceipt {
+  /** Itens que entraram no lote, na ordem de `movementIds` (o toast fala so deles). */
+  itemIds: Ulid[];
   movementIds: Ulid[];
   /** Marcas apagadas pelo repor, para o desfazer devolver. */
   markIds: Ulid[];
@@ -480,11 +482,21 @@ export async function openRepository(deps: RepositoryDeps) {
       const tables = [db.items, db.movements, db.prices, db.listMarks, db.listExtras, db.meta];
       return db.transaction("rw", tables, async () => {
         const s = await stamp();
-        const receipt: CheckoutReceipt = { movementIds: [], markIds: [], extraIds: [] };
+        const receipt: CheckoutReceipt = {
+          itemIds: [],
+          movementIds: [],
+          markIds: [],
+          extraIds: [],
+        };
         // A tela manda o que a pessoa viu marcado: marca escondida (autoList desligado) nao vira estoque.
+        // E o banco decide se ainda esta marcado: um toque que desmarcou depois de a tela
+        // montar a lista (ou outro aparelho) tira a linha do lote.
         for (const line of input.items) {
           if (!isAlive(await db.items.get(line.itemId))) continue;
+          const mark = await db.listMarks.get(listMarkId(line.itemId));
+          if (!isAlive(mark) || mark.checked !== 1) continue;
           const movement = await addMovement(line.itemId, line.qty, "restock", s);
+          receipt.itemIds.push(line.itemId);
           receipt.movementIds.push(movement.id);
           if (line.unitPriceMinor !== null) {
             await addPrice(line.itemId, movement, line.unitPriceMinor, line.qty, s);
@@ -494,7 +506,7 @@ export async function openRepository(deps: RepositoryDeps) {
         }
         for (const id of input.extraIds) {
           const extra = await db.listExtras.get(id);
-          if (!isAlive(extra)) continue;
+          if (!isAlive(extra) || extra.checked !== 1) continue;
           await db.listExtras.put(touched(extra, s, { deletedAt: s.hlc }));
           receipt.extraIds.push(id);
         }

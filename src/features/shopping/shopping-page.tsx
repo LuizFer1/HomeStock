@@ -2,7 +2,11 @@ import type { JSX } from "preact";
 import { useEffect, useId, useMemo, useRef, useState } from "preact/hooks";
 import type { AppContext } from "../../app-context";
 import type { Member } from "../../domain/model/member";
-import { type ShoppingEntry, shoppingList } from "../../domain/projections/shopping";
+import {
+  checkedEntries,
+  type ShoppingEntry,
+  shoppingList,
+} from "../../domain/projections/shopping";
 import { formatMoney } from "../item/labels";
 import { describeError } from "../session/session";
 import { Avatar } from "../ui/avatar";
@@ -119,16 +123,17 @@ export function ShoppingPage({ ctx }: ShoppingPageProps): JSX.Element {
     submitting.current = true;
     setBusy(true);
     setError(null);
-    // Lido antes do await: o texto do toast fala do que a pessoa viu marcado.
-    const checked = [...list.auto, ...list.house].filter((e) => e.checked);
-    const items = checked
-      .filter((e) => e.kind === "item")
-      .map((e) => ({ qty: e.qty, unit: e.unit, name: e.name }));
-    const extras = checked.filter((e) => e.kind === "extra").length;
+    // Lido antes do await: nome, quantidade e unidade das linhas que a pessoa viu marcadas.
+    const seen = new Map(checkedEntries(list).map((e) => [e.id, e]));
     try {
       const receipt = await shopping.checkout(list);
+      // O toast conta o recibo, nao a tela: linha desmarcada no meio nao entrou no lote.
+      const items = receipt.itemIds.flatMap((id) => {
+        const e = seen.get(id);
+        return e === undefined ? [] : [{ qty: e.qty, unit: e.unit, name: e.name }];
+      });
       if (receipt.movementIds.length + receipt.extraIds.length > 0) {
-        toast.show(checkoutMessage(items, extras), {
+        toast.show(checkoutMessage(items, receipt.extraIds.length), {
           label: "Desfazer",
           run: async () => {
             await shopping.undoCheckout(receipt);

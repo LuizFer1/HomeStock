@@ -59,6 +59,14 @@ export function unitPriceOf(entry: ShoppingEntry): number | null {
   return entry.priceMinor ?? entry.estimateMinor;
 }
 
+/**
+ * Linhas marcadas que a pessoa ve, na ordem da tela. Fonte unica do que o repor leva
+ * e do que o toast conta: a tela e a store nao podem filtrar cada uma do seu jeito.
+ */
+export function checkedEntries(list: Pick<ShoppingList, "auto" | "house">): ShoppingEntry[] {
+  return [...list.auto, ...list.house].filter((e) => e.checked);
+}
+
 const byName = (a: ShoppingEntry, b: ShoppingEntry) => a.name.localeCompare(b.name, "pt-BR");
 
 /**

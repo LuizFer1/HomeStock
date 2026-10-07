@@ -128,6 +128,18 @@ describe("checkout", () => {
     expect(quantityOf(item.id, session.data.value.movements)).toBe(0);
   });
 
+  it("o repor espera o toque pendente e nao leva a linha desmarcada", async () => {
+    const { session, item, store, list } = await setup();
+    await store.toggle({ kind: "item", id: item.id });
+    const seen = list();
+    // O toque que desmarca ainda nao gravou quando o repor sai com a lista velha.
+    const pending = store.toggle({ kind: "item", id: item.id });
+    const receipt = await store.checkout(seen);
+    await pending;
+    expect(receipt.itemIds).toEqual([]);
+    expect(quantityOf(item.id, session.data.value.movements)).toBe(0);
+  });
+
   it("pedido marcado sai da lista no repor", async () => {
     const { session, store, list } = await setup();
     const extra = await store.addExtra("Banana");

@@ -615,6 +615,7 @@ describe("repor em lote", () => {
     expect((await db.listMarks.get(listMarkId(coffee.id)))?.deletedAt).toBe(stamp);
     expect((await db.listMarks.get(listMarkId(det.id)))?.deletedAt).toBe(stamp);
     expect((await db.listExtras.get(banana.id))?.deletedAt).toBe(stamp);
+    expect(receipt.itemIds).toEqual([coffee.id, det.id]);
     expect(receipt.movementIds).toHaveLength(2);
     expect(receipt.markIds).toEqual([listMarkId(coffee.id), listMarkId(det.id)]);
     expect(receipt.extraIds).toEqual([banana.id]);
@@ -634,6 +635,39 @@ describe("repor em lote", () => {
     const forDet = (await db.movements.toArray()).filter((m) => m.itemId === det.id);
     expect(forDet).toHaveLength(0);
     expect(quantityOf(coffee.id, await db.movements.toArray())).toBe(3);
+  });
+
+  it("checkout pula linha que nao esta mais marcada no banco", async () => {
+    const { db, repo, coffee, det, banana } = await market();
+    // Desmarcadas por outro toque (ou outro aparelho) depois de a tela montar a lista.
+    await repo.toggleItemMark(det.id);
+    await repo.toggleListExtra(banana.id);
+    const receipt = await repo.checkout({
+      items: [
+        { itemId: coffee.id, qty: 2, unitPriceMinor: null },
+        { itemId: det.id, qty: 3, unitPriceMinor: 990 },
+      ],
+      extraIds: [banana.id],
+    });
+    expect(receipt.itemIds).toEqual([coffee.id]);
+    expect(receipt.movementIds).toHaveLength(1);
+    expect(receipt.markIds).toEqual([listMarkId(coffee.id)]);
+    expect(receipt.extraIds).toEqual([]);
+    expect((await db.movements.toArray()).filter((m) => m.itemId === det.id)).toHaveLength(0);
+    expect(await db.prices.count()).toBe(0);
+    expect((await db.listMarks.get(listMarkId(det.id)))?.deletedAt).toBeNull();
+    expect((await db.listExtras.get(banana.id))?.deletedAt).toBeNull();
+  });
+
+  it("checkout pula item sem marca viva", async () => {
+    const { db, repo, coffee } = await market();
+    await repo.unpinItem(coffee.id);
+    const receipt = await repo.checkout({
+      items: [{ itemId: coffee.id, qty: 2, unitPriceMinor: null }],
+      extraIds: [],
+    });
+    expect(receipt).toEqual({ itemIds: [], movementIds: [], markIds: [], extraIds: [] });
+    expect(quantityOf(coffee.id, await db.movements.toArray())).toBe(1);
   });
 
   it("checkout com quantidade invalida rejeita sem gravar nada", async () => {

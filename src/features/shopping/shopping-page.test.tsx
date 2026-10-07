@@ -178,6 +178,45 @@ describe("ShoppingPage", () => {
     expect(added.map((m) => [m.itemId, m.delta])).toEqual([[id, 3]]);
   });
 
+  it("Repor espera a marcacao pendente e so leva o que ficou marcado", async () => {
+    const { session } = await setup(seedCafeSabao);
+    const id = cafeId(session);
+    fireEvent.click(screen.getByRole("checkbox", { name: CAFE }));
+    fireEvent.click(screen.getByRole("checkbox", { name: SABAO }));
+    await waitFor(() => expect(progress().getAttribute("aria-valuetext")).toBe("2 de 2"));
+    // Segura so o toque que desmarca o cafe, dentro do repositorio: o repor nao pode passar na frente.
+    const run = session.run;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    (session as { run: Session["run"] }).run = (command) =>
+      run((repo) =>
+        command(
+          Object.create(repo, {
+            toggleItemMark: {
+              value: async (itemId: string) => {
+                await gate;
+                return repo.toggleItemMark(itemId);
+              },
+            },
+          }),
+        ),
+      );
+    const movesBefore = new Set(session.data.value.movements.map((m) => m.id));
+    fireEvent.click(screen.getByRole("checkbox", { name: CAFE }));
+    // A tela ainda mostra o cafe marcado: o Repor sai com ele na lista.
+    fireEvent.click(repor());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    release();
+    // O toast fala so do que entrou no lote.
+    expect(await screen.findByText("Guardou 1 un de Sabão em pó")).toBeTruthy();
+    const added = session.data.value.movements.filter((m) => !movesBefore.has(m.id));
+    expect(added.map((m) => m.itemId)).not.toContain(id);
+    expect(added).toHaveLength(1);
+    expect(screen.getByRole("checkbox", { name: CAFE }).getAttribute("aria-checked")).toBe("false");
+  });
+
   it("falha no repor mostra o erro focado", async () => {
     const { ctx } = await setup(seedCafeSabao);
     ctx.shopping.checkout = () => Promise.reject(new Error("Sem espaço no aparelho."));

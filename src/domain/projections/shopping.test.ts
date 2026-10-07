@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ListExtra } from "../model/list-extra";
 import type { ListMark } from "../model/list-mark";
 import { fakeItem, fakeMovement, fakePrice } from "../model/row.fake";
-import { listStatusOf, liveMarkOf, shoppingList, unitPriceOf } from "./shopping";
+import { checkedEntries, listStatusOf, liveMarkOf, shoppingList, unitPriceOf } from "./shopping";
 
 const hlc = (n: number) => `${String(n).padStart(13, "0")}-0000-${"0".repeat(26)}`;
 
@@ -263,6 +263,19 @@ describe("shoppingList: ordem e totais", () => {
       extras: [extra("E1", "Banana")],
     });
     expect(l).toMatchObject({ remainingMinor: 20550, unpriced: 1, done: 1, total: 4 });
+  });
+});
+
+describe("checkedEntries", () => {
+  it("so as marcadas, automaticas antes dos pedidos", () => {
+    const a = fakeItem({ name: "A" });
+    const b = fakeItem({ name: "B" });
+    const l = list({
+      items: [a, b],
+      marks: [mark(b.id, { checked: 1 })],
+      extras: [extra("E1", "Banana", { checked: 1 }), extra("E2", "Uva")],
+    });
+    expect(checkedEntries(l).map((e) => e.name)).toEqual(["B", "Banana"]);
   });
 });
 
