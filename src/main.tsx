@@ -1,6 +1,10 @@
 import "./styles/app.css";
 import { render } from "preact";
 import { App } from "./app";
+import { HomeStockDb } from "./data/db";
+import { cryptoRandomChunk } from "./domain/ids/ulid";
+import { createSession } from "./features/session/session";
+import { localToday } from "./features/session/today";
 import { createRouter } from "./features/shell/route";
 import { createUpdateStore, type SwContainer } from "./features/update/store";
 
@@ -29,13 +33,28 @@ const update = createUpdateStore({
   version: __BUILD_TIME__,
 });
 
+// Uma instancia so: o reset precisa apagar esta, e uma segunda conexao aberta
+// deixaria o `delete` do banco bloqueado.
+const db = new HomeStockDb();
+
+const session = createSession({
+  db,
+  now: () => Date.now(),
+  randomChunk: cryptoRandomChunk,
+  today: () => localToday(),
+});
+void session.init();
+
 const router = createRouter(window.history);
 window.addEventListener("popstate", router.onPopState);
 
 // PWA instalado fica dias aberto sem navegar, e e na navegacao que o navegador
 // procura `sw.js` novo. Voltar para o app e o momento natural de perguntar.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") void update.check();
+  if (document.visibilityState !== "visible") return;
+  void update.check();
+  // Outra aba pode ter gravado enquanto esta estava escondida.
+  if (session.status.value === "ready") void session.reload().catch(() => {});
 });
 
-render(<App router={router} update={update} />, root);
+render(<App router={router} update={update} session={session} />, root);

@@ -1,39 +1,87 @@
+import "fake-indexeddb/auto";
 import { signal } from "@preact/signals";
 import { cleanup, fireEvent, render, screen } from "@testing-library/preact";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
+import { openTestDb, seededRandom, testClock } from "./data/test-db.fake";
+import { createSession, type Session } from "./features/session/session";
+import { ANA, openTestSession } from "./features/session/test-session.fake";
 import { createRouter } from "./features/shell/route";
 import type { UpdateStore } from "./features/update/store";
 
-function setup(ready = false) {
-  const router = createRouter({ pushState: () => {}, back: () => {} });
+function setup(session: Session, ready = false) {
+  const history = { pushState: vi.fn(), back: vi.fn() };
+  const router = createRouter(history);
   const update: UpdateStore = {
     ready: signal(ready),
     check: async () => "current",
     apply: () => {},
     version: null,
   };
-  render(<App router={router} update={update} />);
-  return router;
+  render(<App router={router} update={update} session={session} />);
+  return { router, history };
+}
+
+function idleSession(): Session {
+  return createSession({
+    db: openTestDb(),
+    now: testClock(),
+    randomChunk: seededRandom(1),
+    today: () => "2026-10-06",
+  });
 }
 
 afterEach(cleanup);
 
 describe("App", () => {
-  it("abre no Inicio", () => {
-    setup();
+  it("abre no Inicio com a sessao pronta", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    setup(session);
     expect(screen.getByRole("heading", { name: "Início" })).toBeTruthy();
   });
 
   it("troca de tela pela tab bar", async () => {
-    const router = setup();
+    const { session } = await openTestSession({ member: ANA });
+    const { router } = setup(session);
     fireEvent.click(screen.getByRole("button", { name: "Estoque" }));
     expect(router.tab.value).toBe("stock");
     expect(await screen.findByRole("heading", { name: "Estoque" })).toBeTruthy();
   });
 
-  it("mostra o aviso de versao nova", () => {
-    setup(true);
+  it("mostra o aviso de versao nova", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    setup(session, true);
     expect(screen.getByText("Nova versão disponível")).toBeTruthy();
+  });
+
+  it("enquanto carrega nao mostra a tab bar", () => {
+    setup(idleSession());
+    expect(screen.queryByRole("button", { name: "Estoque" })).toBeNull();
+    expect(document.querySelector("[aria-busy='true']")).not.toBeNull();
+  });
+
+  it("falha ao abrir o banco mostra o alerta com o motivo", async () => {
+    const db = openTestDb();
+    vi.spyOn(db.meta, "get").mockRejectedValue(new Error("quota"));
+    const session = createSession({
+      db,
+      now: testClock(),
+      randomChunk: seededRandom(1),
+      today: () => "2026-10-06",
+    });
+    await session.init();
+    setup(session);
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Não foi possível abrir o armazenamento deste aparelho.",
+    );
+    expect(screen.getByText("quota")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Estoque" })).toBeNull();
+  });
+
+  it("tela empilhada desconhecida volta", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { router, history } = setup(session);
+    router.push({ kind: "nada" });
+    await vi.waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
   });
 });
