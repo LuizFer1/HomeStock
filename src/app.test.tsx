@@ -7,6 +7,7 @@ import { openTestDb, seededRandom, testClock } from "./data/test-db.fake";
 import { createOnboardingStore } from "./features/onboarding/store";
 import { createSession, type Session } from "./features/session/session";
 import { ANA, openTestSession } from "./features/session/test-session.fake";
+import { createSettingsStore } from "./features/settings/store";
 import { createRouter } from "./features/shell/route";
 import type { UpdateStore } from "./features/update/store";
 
@@ -25,6 +26,7 @@ function setup(session: Session, ready = false) {
       update={update}
       session={session}
       onboarding={createOnboardingStore(session)}
+      settings={createSettingsStore(session)}
       processFile={async () => "data:image/webp;base64,AAA"}
     />,
   );
@@ -124,5 +126,26 @@ describe("App", () => {
     setup(session, true);
     expect(screen.getByText("Como podemos te chamar?")).toBeTruthy();
     expect(screen.queryByText("Nova versão disponível")).toBeNull();
+  });
+
+  it("o avatar do Inicio abre os Ajustes e Editar abre o wizard de edicao", async () => {
+    const { session } = await openTestSession({ member: ANA });
+    const { router } = setup(session);
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
+    expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    const field = (await screen.findByLabelText("Seu nome")) as HTMLInputElement;
+    expect(field.value).toBe("Ana");
+
+    fireEvent.input(field, { target: { value: "Ana Maria" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    await vi.waitFor(() => expect(session.localMember.value?.name).toBe("Ana Maria"));
+    // O historico do navegador e quem desempilha; aqui o popstate e simulado.
+    router.onPopState();
+    expect(await screen.findByRole("heading", { name: "Ajustes" })).toBeTruthy();
+    expect(screen.getAllByText("Ana Maria").length).toBeGreaterThan(0);
   });
 });

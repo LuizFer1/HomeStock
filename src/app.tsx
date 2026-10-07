@@ -2,8 +2,11 @@ import { useEffect } from "preact/hooks";
 import { MemberWizard } from "./features/onboarding/member-wizard";
 import type { OnboardingStore } from "./features/onboarding/store";
 import type { Session } from "./features/session/session";
+import { SettingsPage } from "./features/settings/settings-page";
+import type { SettingsStore } from "./features/settings/store";
 import type { Router, Screen, Tab } from "./features/shell/route";
 import { TabBar } from "./features/shell/tab-bar";
+import { Avatar } from "./features/ui/avatar";
 import type { UpdateStore } from "./features/update/store";
 import { UpdateBanner } from "./features/update/update-banner";
 
@@ -24,8 +27,43 @@ function UnknownScreen({ onBack }: { onBack: () => void }) {
   return null;
 }
 
-function StackedScreen({ screen, router }: { screen: Screen; router: Router }) {
+interface StackedProps {
+  screen: Screen;
+  router: Router;
+  session: Session;
+  settings: SettingsStore;
+  version: string | null;
+  processFile: (file: Blob) => Promise<string>;
+}
+
+function StackedScreen({ screen, router, session, settings, version, processFile }: StackedProps) {
+  const me = session.localMember.value;
   switch (screen.kind) {
+    case "settings":
+      return (
+        <SettingsPage
+          session={session}
+          store={settings}
+          version={version}
+          onBack={router.back}
+          onEditProfile={() => router.push({ kind: "profile" })}
+          onOpenPlaces={() => router.push({ kind: "places" })}
+        />
+      );
+    case "profile":
+      if (me === null) return <UnknownScreen onBack={router.back} />;
+      return (
+        <MemberWizard
+          mode="edit"
+          initial={{ name: me.name, color: me.color, photo: me.photo }}
+          onSubmit={async (draft) => {
+            await settings.saveProfile(draft);
+            router.back();
+          }}
+          onCancel={router.back}
+          processFile={processFile}
+        />
+      );
     default:
       return <UnknownScreen onBack={router.back} />;
   }
@@ -36,12 +74,14 @@ export function App({
   update,
   session,
   onboarding,
+  settings,
   processFile,
 }: {
   router: Router;
   update: UpdateStore;
   session: Session;
   onboarding: OnboardingStore;
+  settings: SettingsStore;
   processFile: (file: Blob) => Promise<string>;
 }) {
   const status = session.status.value;
@@ -74,13 +114,22 @@ export function App({
 
   const top = router.top.value;
   const tab = router.tab.value;
+  const me = session.localMember.value;
 
   if (top !== null) {
     return (
       <div class="mx-auto min-h-dvh max-w-[480px]">
         {/* A chave pela profundidade remonta a tela a cada pop: duas desconhecidas
             seguidas reaproveitariam a instancia e o efeito de voltar nao rodaria. */}
-        <StackedScreen key={router.stack.value.length} screen={top} router={router} />
+        <StackedScreen
+          key={router.stack.value.length}
+          screen={top}
+          router={router}
+          session={session}
+          settings={settings}
+          version={update.version}
+          processFile={processFile}
+        />
         {banner}
       </div>
     );
@@ -89,7 +138,23 @@ export function App({
   return (
     <div class="mx-auto min-h-dvh max-w-[480px]">
       <main class="no-scrollbar px-[22px] pt-11 pb-[110px]">
-        <h1 class="text-[36px]">{TITLES[tab]}</h1>
+        {tab === "home" ? (
+          <div class="flex items-center justify-between">
+            <h1 class="text-[36px]">{TITLES[tab]}</h1>
+            {me !== null ? (
+              <button
+                type="button"
+                aria-label="Ajustes"
+                class="rounded-pill"
+                onClick={() => router.push({ kind: "settings" })}
+              >
+                <Avatar name={me.name} color={me.color} photo={me.photo} size={40} />
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <h1 class="text-[36px]">{TITLES[tab]}</h1>
+        )}
       </main>
       {banner}
       <TabBar active={tab} onSelect={router.selectTab} onScan={() => {}} />
