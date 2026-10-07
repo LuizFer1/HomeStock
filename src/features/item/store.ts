@@ -23,10 +23,10 @@ export interface ItemStore {
  * O indice de EAN nao e unico (o sync pode trazer duplicata); a tela recusa
  * antes de gravar, com o EAN ja normalizado, que e o valor que iria ao banco.
  */
-async function assertEanFree(repo: Repository, ean: string | null, self: Ulid | null) {
+async function assertEanFree(repo: Repository, ean: string | null, self?: Ulid) {
   if (ean === null) return;
-  const other = await repo.findByEan(ean);
-  if (other !== null && other.id !== self) {
+  const other = await repo.findByEan(ean, self);
+  if (other !== null) {
     throw new Error(`O código ${ean} já é de ${other.name}.`);
   }
 }
@@ -41,14 +41,17 @@ export function createItemStore(session: Session): ItemStore {
     async create(draft, qty) {
       const clean = normalizeItemDraft(draft);
       return session.run(async (repo) => {
-        await assertEanFree(repo, clean.ean, null);
+        await assertEanFree(repo, clean.ean);
         return repo.createItem(clean, qty);
       });
     },
     async save(id, draft, qty) {
       const clean = normalizeItemDraft(draft);
       await session.run(async (repo) => {
-        await assertEanFree(repo, clean.ean, id);
+        // EAN que nao mudou nao e checado: com duplicata do sync, editar o
+        // minimo de um dos dois nao pode ficar travado pelo outro.
+        const stored = session.data.value.items.find((i) => i.id === id)?.ean ?? null;
+        if (clean.ean !== stored) await assertEanFree(repo, clean.ean, id);
         await repo.updateItem(id, clean);
         // adjustTo nao grava nada se a soma ja e o alvo.
         if (qty !== null) await repo.adjustTo(id, qty);

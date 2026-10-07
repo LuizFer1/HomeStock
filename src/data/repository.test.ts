@@ -202,6 +202,17 @@ describe("comandos", () => {
     expect(await repo.findByEan("7891234567890")).toBeNull();
     expect(await repo.findByEan("0000")).toBeNull();
   });
+
+  it("findByEan com exceptId acha outro item vivo com o mesmo EAN", async () => {
+    const { repo } = await openTestRepository();
+    // O sync pode trazer dois itens com o mesmo EAN: o indice nao e unico.
+    const first = await repo.createItem(cafe());
+    const second = await repo.createItem(cafe({ name: "Café 2" }));
+    expect((await repo.findByEan("7891234567890", first.id))?.id).toBe(second.id);
+    expect((await repo.findByEan("7891234567890", second.id))?.id).toBe(first.id);
+    await repo.deleteItem(second.id);
+    expect(await repo.findByEan("7891234567890", first.id)).toBeNull();
+  });
 });
 
 describe("nomes de categoria e local", () => {

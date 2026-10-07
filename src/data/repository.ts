@@ -374,10 +374,14 @@ export async function openRepository(deps: RepositoryDeps) {
       });
     },
 
-    /** Item vivo com este EAN, para o "Achamos!" do scanner. */
-    async findByEan(ean: string): Promise<Item | null> {
+    /**
+     * Item vivo com este EAN, para o "Achamos!" do scanner. `exceptId` pula um
+     * item: o indice nao e unico (o sync traz duplicata) e o primeiro achado
+     * pode ser o proprio item em edicao, escondendo o outro.
+     */
+    async findByEan(ean: string, exceptId?: Ulid): Promise<Item | null> {
       const found = await db.items.where("ean").equals(ean).toArray();
-      return found.find((item) => isAlive(item)) ?? null;
+      return found.find((item) => isAlive(item) && item.id !== exceptId) ?? null;
     },
   };
 

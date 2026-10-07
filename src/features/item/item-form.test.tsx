@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppContext } from "../../app-context";
 import { testContext } from "../../app-context.fake";
+import type { HomeStockDb } from "../../data/db";
 import { DEFAULT_CATEGORY_ID } from "../../domain/defaults/seeds";
 import type { Draft } from "../../domain/model/base";
 import { isAlive } from "../../domain/model/base";
@@ -19,18 +20,18 @@ interface SetupOptions {
   mode?: "create" | "edit";
   draft?: Partial<Draft<Item>>;
   qty?: number;
-  prepare?: (session: Session, item: Item) => Promise<void>;
+  prepare?: (session: Session, item: Item, db: HomeStockDb) => Promise<void>;
   overrides?: Partial<AppContext>;
 }
 
 async function setup(options: SetupOptions = {}) {
-  const { session } = await openTestSession({ member: ANA });
+  const { db, session } = await openTestSession({ member: ANA });
   const mode = options.mode ?? "create";
   const item =
     mode === "edit"
       ? await session.run((repo) => repo.createItem(cafe(options.draft), options.qty ?? 2))
       : undefined;
-  if (item !== undefined) await options.prepare?.(session, item);
+  if (item !== undefined) await options.prepare?.(session, item, db);
   const { ctx, history } = testContext(session, options.overrides);
   ctx.router.push(mode === "edit" ? { kind: "item-edit", id: item?.id } : { kind: "item-new" });
   render(
@@ -145,7 +146,8 @@ describe("ItemForm criar", () => {
     type("Código de barras", "123");
     fireEvent.click(button("Guardar 1 un"));
     const alert = await screen.findByText("O código de barras tem de 8 a 14 dígitos.");
-    expect(alert.getAttribute("role")).toBe("alert");
+    // O foco vai a mensagem e o leitor a le: sem role="alert", que a anunciaria de novo.
+    expect(alert.closest("[role=alert]")).toBeNull();
     expect(alive()).toHaveLength(0);
     expect(history.back).not.toHaveBeenCalled();
     // O erro nao e do nome: o foco vai a mensagem.
@@ -170,6 +172,13 @@ describe("ItemForm criar", () => {
     fireEvent.click(button("Guardar 1 un"));
     await waitFor(() => expect(alive()).toHaveLength(1));
     expect(alive()[0]).toMatchObject({ expiresAt: "2027-04-12", ean: "78912345" });
+  });
+
+  it("sem unidade o CTA nao tem espaco sobrando", async () => {
+    await setup();
+    type("Nome", "Arroz");
+    type("Unidade", "");
+    expect(button("Guardar 1").textContent).toBe("Guardar 1");
   });
 
   it("dois cliques seguidos em Guardar gravam uma vez", async () => {
@@ -258,6 +267,38 @@ describe("ItemForm editar", () => {
     expect(session.data.value.items[0]?.categoryId).toBe(DEFAULT_CATEGORY_ID);
   });
 
+  it("local apagado: Nenhum ativo e salvar grava local nulo", async () => {
+    const { session, item, history } = await setup({
+      mode: "edit",
+      draft: { name: "Café" },
+      prepare: async (s, it) => {
+        const place = await s.run((repo) => repo.upsertLocation("Quartinho"));
+        await s.run((repo) => repo.updateItem(it.id, { locationId: place.id }));
+        await s.run((repo) => repo.removeLocation(place.id));
+      },
+    });
+    expect(chip("Local", "Nenhum").getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(button("Salvar"));
+    await waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
+    expect(session.data.value.items.find((i) => i.id === item?.id)?.locationId).toBeNull();
+  });
+
+  it("foto fora do formato some do formulario e sai ao salvar", async () => {
+    const { session, item, history } = await setup({
+      mode: "edit",
+      prepare: async (s, it, db) => {
+        // Linha que chegou torta (sync antigo): o repositorio nao a gravaria.
+        await db.items.update(it.id, { photo: "https://exemplo.com/x.png" });
+        await s.reload();
+      },
+    });
+    expect(screen.queryByRole("img", { name: "Foto do item" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remover foto" })).toBeNull();
+    fireEvent.click(button("Salvar"));
+    await waitFor(() => expect(history.back).toHaveBeenCalledTimes(1));
+    expect(session.data.value.items.find((i) => i.id === item?.id)?.photo).toBeNull();
+  });
+
   it("item apagado volta", async () => {
     const { history } = await setup({
       mode: "edit",
@@ -309,6 +350,51 @@ describe("ItemForm foto", () => {
     fireEvent.click(button("Guardar 1 un"));
     await waitFor(() => expect(alive()).toHaveLength(1));
     expect(alive()[0]?.photo).toBe("data:image/webp;base64,AAA");
+  });
+
+  it("com a foto em preparo o CTA espera e avisa", async () => {
+    let resolveSlow: (value: string) => void = () => {};
+    const processItemPhoto = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveSlow = resolve;
+        }),
+    );
+    await setup({ overrides: { processItemPhoto } });
+    type("Nome", "Arroz");
+    pickFile("Galeria");
+    expect(await screen.findByText("Preparando a foto…")).toBeTruthy();
+    expect(button("Guardar 1 un").disabled).toBe(true);
+    await act(async () => {
+      resolveSlow("data:image/webp;base64,AAA");
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("Preparando a foto…")).toBeNull();
+    expect(button("Guardar 1 un").disabled).toBe(false);
+  });
+
+  it("Remover foto durante o preparo libera o CTA", async () => {
+    const processItemPhoto = vi
+      .fn()
+      .mockResolvedValueOnce("data:image/webp;base64,AAA")
+      .mockImplementationOnce(() => new Promise<string>(() => {}));
+    await setup({ overrides: { processItemPhoto } });
+    type("Nome", "Arroz");
+    pickFile("Galeria");
+    await screen.findByRole("img", { name: "Foto do item" });
+    pickFile("Galeria");
+    expect(await screen.findByText("Preparando a foto…")).toBeTruthy();
+    fireEvent.click(button("Remover foto"));
+    expect(screen.queryByText("Preparando a foto…")).toBeNull();
+    expect(button("Guardar 1 un").disabled).toBe(false);
+  });
+
+  it("Câmera e Galeria mostram o anel de foco do input escondido", async () => {
+    await setup();
+    for (const label of ["Câmera", "Galeria"]) {
+      const box = field(label).closest("label");
+      expect(box?.className).toContain("has-[:focus-visible]:outline-2");
+    }
   });
 
   it("a camera pede a traseira", async () => {

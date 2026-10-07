@@ -157,6 +157,25 @@ describe("create e save", () => {
     expect(session.data.value.items.find((i) => i.id === other.id)?.name).toBe("Chá");
   });
 
+  it("dois itens com o mesmo EAN (sync): editar qualquer um sem mexer no EAN passa", async () => {
+    const { session, store } = await setup();
+    const first = await session.run((repo) => repo.createItem(cafe(), 1));
+    const second = await session.run((repo) => repo.createItem(cafe({ name: "Café 2" }), 1));
+    await store.save(first.id, cafe({ min: 7 }), null);
+    await store.save(second.id, cafe({ name: "Café 2", min: 8 }), null);
+    const min = (id: string) => session.data.value.items.find((i) => i.id === id)?.min;
+    expect([min(first.id), min(second.id)]).toEqual([7, 8]);
+  });
+
+  it("trocar o EAN para um que outro item tem rejeita, mesmo com o proprio no indice", async () => {
+    const { session, store } = await setup();
+    await session.run((repo) => repo.createItem(cafe(), 1));
+    const other = await store.create(cafe({ name: "Chá", ean: "78912345" }), 1);
+    await expect(store.save(other.id, cafe({ name: "Chá" }), null)).rejects.toThrow(
+      "O código 7891234567890 já é de Café em grãos.",
+    );
+  });
+
   it("save com quantidade nova grava um adjust pela diferenca", async () => {
     const { session, store } = await setup();
     const item = await store.create(cafe(), 2);

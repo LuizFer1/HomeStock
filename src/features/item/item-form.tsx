@@ -19,7 +19,7 @@ import { quantities } from "../../domain/projections/stock";
 import { describeError } from "../session/session";
 import { closeIfStill } from "../shell/route";
 import { UnknownScreen } from "../shell/unknown-screen";
-import { BTN_SECONDARY, Button } from "../ui/button";
+import { BTN_SECONDARY, Button, PICK_FOCUS } from "../ui/button";
 import { CountStepper } from "../ui/count-stepper";
 import { ErrorText } from "../ui/error-text";
 import { IconButton } from "../ui/icon-button";
@@ -51,6 +51,8 @@ interface FormValues {
 // `.field > label` do markup.
 const LABEL = "mb-[5px] block text-[12px] text-text/70";
 const EAN_MAX = 14;
+// O input fica sr-only: o anel de foco aparece no label que o envolve.
+const PICK = `${BTN_SECONDARY} ${PICK_FOCUS}`;
 // Erros que o campo Nome resolve: o foco vai a ele, e nao a mensagem.
 const NAME_ERRORS = new Set(["Dê um nome ao item.", `Use até ${MAX_ITEM_NAME} letras no nome.`]);
 
@@ -174,6 +176,8 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
   // Conta cada falha: a mesma mensagem duas vezes ainda precisa mover o foco.
   const [failures, setFailures] = useState(0);
   const [busy, setBusy] = useState(false);
+  // Foto escolhida ainda no pipeline: salvar agora gravaria sem ela.
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // Ref e nao estado: dois toques no mesmo render leem o mesmo `busy` velho.
   const submitting = useRef(false);
@@ -214,6 +218,7 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
     if (file === undefined) return;
     pickTicket.current += 1;
     const ticket = pickTicket.current;
+    setPhotoBusy(true);
     try {
       const next = await ctx.processItemPhoto(file);
       if (ticket !== pickTicket.current) return;
@@ -224,6 +229,7 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
     } finally {
       // Sem isso, escolher o mesmo arquivo de novo nao dispara `change`.
       input.value = "";
+      if (ticket === pickTicket.current) setPhotoBusy(false);
     }
   }
 
@@ -231,12 +237,13 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
     pickTicket.current += 1;
     setPhoto(null);
     setPhotoError(null);
+    setPhotoBusy(false);
     // O botao some com a foto: o foco segue para a Galeria, ao lado.
     galleryInput.current?.focus();
   }
 
   async function submit() {
-    if (submitting.current || nameEmpty) return;
+    if (submitting.current || nameEmpty || photoBusy) return;
     submitting.current = true;
     setBusy(true);
     setError(null);
@@ -299,7 +306,7 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
           )}
         </div>
         <div class="flex min-w-0 flex-1 flex-col gap-2">
-          <label class={BTN_SECONDARY}>
+          <label class={PICK}>
             <Camera size={18} strokeWidth={2.75} />
             Câmera
             <input
@@ -310,7 +317,7 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
               onChange={(event) => void pick(event)}
             />
           </label>
-          <label class={BTN_SECONDARY}>
+          <label class={PICK}>
             <ImageIcon size={18} strokeWidth={2.75} />
             Galeria
             <input
@@ -416,17 +423,18 @@ export function ItemForm({ ctx, mode, id }: ItemFormProps): JSX.Element | null {
       {error !== null && (
         // Alvo do foco quando o erro nao e de um campo: o leitor de tela le a mensagem.
         <div ref={errorBox} tabIndex={-1} class="mt-4">
-          <ErrorText>{error}</ErrorText>
+          <ErrorText alert={NAME_ERRORS.has(error)}>{error}</ErrorText>
         </div>
       )}
+      {photoBusy && <p class="mt-4 text-center text-[12px] text-neutral-700">Preparando a foto…</p>}
 
       <Button
         block
         class="mt-[14px] min-h-[52px] text-[16px]"
-        disabled={nameEmpty || busy}
+        disabled={nameEmpty || busy || photoBusy}
         onClick={() => void submit()}
       >
-        {create ? `Guardar ${qty} ${unit.trim()}` : "Salvar"}
+        {create ? ["Guardar", qty, unit.trim()].filter((part) => part !== "").join(" ") : "Salvar"}
       </Button>
     </main>
   );

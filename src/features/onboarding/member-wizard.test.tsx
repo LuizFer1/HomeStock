@@ -67,6 +67,17 @@ describe("MemberWizard", () => {
     expect((screen.getByRole("radio", { name: "Musgo" }) as HTMLInputElement).checked).toBe(true);
   });
 
+  it("Câmera e Galeria mostram o anel de foco do input escondido", () => {
+    setup();
+    type("Ana");
+    next();
+    next();
+    for (const label of ["Câmera", "Galeria"]) {
+      const box = screen.getByLabelText(label).closest("label");
+      expect(box?.className).toContain("has-[:focus-visible]:outline-2");
+    }
+  });
+
   it("upload mostra a foto", async () => {
     setup();
     type("Ana");

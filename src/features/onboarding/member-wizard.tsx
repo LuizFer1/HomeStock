@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { MAX_MEMBER_NAME, type MemberColor, type MemberDraft } from "../../domain/model/member";
 import { describeError } from "../session/session";
 import { Avatar } from "../ui/avatar";
-import { BTN_SECONDARY, Button } from "../ui/button";
+import { BTN_SECONDARY, Button, PICK_FOCUS } from "../ui/button";
 import { ColorSwatches } from "../ui/color-swatches";
 import { ErrorText } from "../ui/error-text";
 import { IconButton } from "../ui/icon-button";
@@ -234,7 +234,7 @@ export function MemberWizard({
               <p class="mt-3.5 font-heading text-[24px]">{shown}</p>
             </div>
             <div class="mt-5 flex gap-2.5">
-              <label class={`${BTN_SECONDARY} min-h-12 flex-1`}>
+              <label class={`${BTN_SECONDARY} ${PICK_FOCUS} min-h-12 flex-1`}>
                 <Camera size={18} strokeWidth={2.75} />
                 Câmera
                 <input
@@ -245,7 +245,7 @@ export function MemberWizard({
                   onChange={(event) => void pick(event)}
                 />
               </label>
-              <label class={`${BTN_SECONDARY} min-h-12 flex-1`}>
+              <label class={`${BTN_SECONDARY} ${PICK_FOCUS} min-h-12 flex-1`}>
                 <ImageIcon size={18} strokeWidth={2.75} />
                 Galeria
                 <input
