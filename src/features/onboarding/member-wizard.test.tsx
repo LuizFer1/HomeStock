@@ -131,4 +131,79 @@ describe("MemberWizard", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(ANA));
     expect(screen.queryByText("Tudo pronto, Ana!")).toBeNull();
   });
+
+  it("duplo toque em Salvar envia uma vez so", async () => {
+    let release: () => void = () => {};
+    const onSubmit = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    setup({ mode: "edit", initial: ANA, onSubmit });
+    next();
+    next();
+    const save = screen.getByRole("button", { name: "Salvar" });
+    fireEvent.click(save);
+    fireEvent.click(save);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    release();
+  });
+
+  it("foto que chega depois de Usar so a inicial nao ressuscita", async () => {
+    let finish: (photo: string) => void = () => {};
+    const processFile = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { onSubmit } = setup({ processFile });
+    type("Ana");
+    next();
+    next();
+    upload("Galeria");
+    fireEvent.click(screen.getByRole("button", { name: "Usar só a inicial" }));
+    finish(PHOTO);
+    await Promise.resolve();
+    await Promise.resolve();
+    fireEvent.click(screen.getByRole("button", { name: "Entrar no HomeStock" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(ANA));
+  });
+
+  it("falha na foto mantem a foto anterior", async () => {
+    const processFile = vi.fn(async () => PHOTO);
+    setup({ processFile });
+    type("Ana");
+    next();
+    next();
+    upload("Galeria");
+    await screen.findByAltText("Foto de Ana");
+    processFile.mockRejectedValueOnce(new Error("Falhou"));
+    upload("Galeria");
+    expect((await screen.findByRole("alert")).textContent).toBe("Falhou");
+    expect(screen.getByAltText("Foto de Ana")).toBeTruthy();
+  });
+
+  it("Usar so a inicial no modo editar envia photo null", async () => {
+    const { onSubmit } = setup({ mode: "edit", initial: { ...ANA, photo: PHOTO } });
+    next();
+    next();
+    fireEvent.click(screen.getByRole("button", { name: "Usar só a inicial" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(ANA));
+  });
+
+  it("Enter no campo de nome avanca", () => {
+    setup();
+    type("Ana");
+    fireEvent.keyDown(screen.getByLabelText("Seu nome"), { key: "Enter" });
+    expect(screen.getByText("Qual é a sua cor?")).toBeTruthy();
+  });
+
+  it("o titulo do passo recebe foco ao avancar", () => {
+    setup();
+    type("Ana");
+    next();
+    expect(document.activeElement).toBe(screen.getByText("Qual é a sua cor?"));
+  });
 });

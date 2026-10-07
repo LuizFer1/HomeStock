@@ -22,7 +22,7 @@ export const browserPhotoDeps: PhotoDeps = {
     canvas.height = size;
 
     const ctx = canvas.getContext("2d");
-    if (ctx === null) throw new Error("Nao foi possivel preparar a imagem neste navegador.");
+    if (ctx === null) throw new Error("Não foi possível preparar a imagem neste navegador.");
 
     ctx.drawImage(
       source as CanvasImageSource,

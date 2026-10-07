@@ -1,6 +1,6 @@
 import { Camera, ChevronLeft, Image as ImageIcon } from "lucide-preact";
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { MAX_MEMBER_NAME, type MemberColor, type MemberDraft } from "../../domain/model/member";
 import { describeError } from "../session/session";
 import { Avatar } from "../ui/avatar";
@@ -40,13 +40,29 @@ export function MemberWizard({
   const [photo, setPhoto] = useState<string | null>(start.photo);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ref e nao estado: dois toques no mesmo render leem o mesmo `busy` velho.
+  const submitting = useRef(false);
+  // Senha da escolha de foto em curso: avancar, voltar ou "so a inicial" invalida
+  // a escolha, e uma foto lenta que chega depois nao pode ressuscitar.
+  const pickTicket = useRef(0);
+  const heading = useRef<HTMLElement>(null);
+  const firstRender = useRef(true);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    heading.current?.querySelector("h1")?.focus();
+  }, [step]);
 
   const edit = mode === "edit";
   const nameEmpty = name.trim() === "";
   const shown = nameEmpty ? "Você" : name.trim();
 
   async function submit(nextPhoto: string | null) {
-    if (busy) return;
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -54,16 +70,19 @@ export function MemberWizard({
     } catch (cause) {
       setError(describeError(cause));
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
 
   function advance() {
+    pickTicket.current += 1;
     setError(null);
     setStep(step + 1);
   }
 
   function back() {
+    pickTicket.current += 1;
     setError(null);
     if (step === 0) onCancel?.();
     else setStep(step - 1);
@@ -73,11 +92,15 @@ export function MemberWizard({
     const input = event.currentTarget;
     const file = input.files?.[0];
     if (file === undefined) return;
+    pickTicket.current += 1;
+    const ticket = pickTicket.current;
     try {
-      setPhoto(await processFile(file));
+      const next = await processFile(file);
+      if (ticket !== pickTicket.current) return;
+      setPhoto(next);
       setError(null);
     } catch (cause) {
-      setError(describeError(cause));
+      if (ticket === pickTicket.current) setError(describeError(cause));
     } finally {
       // Sem isso, escolher o mesmo arquivo de novo nao dispara `change`.
       input.value = "";
@@ -85,6 +108,7 @@ export function MemberWizard({
   }
 
   function useInitialOnly() {
+    pickTicket.current += 1;
     setPhoto(null);
     if (edit) void submit(null);
     else advance();
@@ -119,6 +143,7 @@ export function MemberWizard({
           {[0, 1, 2].map((index) => (
             <span
               key={index}
+              aria-hidden="true"
               class={`h-2 flex-1 rounded-pill ${index <= step ? "bg-accent" : "bg-surface"}`}
             />
           ))}
@@ -128,7 +153,7 @@ export function MemberWizard({
         </span>
       </div>
 
-      <main class="no-scrollbar min-h-0 flex-1 overflow-y-auto px-[22px] pt-6 pb-4">
+      <main ref={heading} class="no-scrollbar min-h-0 flex-1 overflow-y-auto px-[22px] pt-6 pb-4">
         {step === 0 && (
           <>
             {!edit && (
@@ -136,7 +161,9 @@ export function MemberWizard({
                 Bem-vindo ao HomeStock
               </span>
             )}
-            <h1 class="mt-3 text-[36px]">Como podemos te chamar?</h1>
+            <h1 tabIndex={-1} class="mt-3 text-[36px]">
+              Como podemos te chamar?
+            </h1>
             <p class="mt-2 text-[15px] text-neutral-800">
               Seu nome aparece para quem divide a casa com você.
             </p>
@@ -167,7 +194,9 @@ export function MemberWizard({
 
         {step === 1 && (
           <>
-            <h1 class="text-[36px]">Qual é a sua cor?</h1>
+            <h1 tabIndex={-1} class="text-[36px]">
+              Qual é a sua cor?
+            </h1>
             <p class="mt-2 text-[15px] text-neutral-800">
               Ela marca o que é seu no histórico, na lista e nos alertas.
             </p>
@@ -188,7 +217,9 @@ export function MemberWizard({
 
         {step === 2 && (
           <>
-            <h1 class="text-[36px]">Um sorriso pra casa</h1>
+            <h1 tabIndex={-1} class="text-[36px]">
+              Um sorriso pra casa
+            </h1>
             <p class="mt-2 text-[15px] text-neutral-800">
               Opcional. Sem foto, usamos sua inicial na sua cor.
             </p>
@@ -230,7 +261,9 @@ export function MemberWizard({
         {step === 3 && (
           <div>
             <Avatar name={shown} color={color} photo={photo} size={72} class="border-4 border-bg" />
-            <h1 class="mt-[18px] mb-2.5 text-[36px]">Tudo pronto, {shown}!</h1>
+            <h1 tabIndex={-1} class="mt-[18px] mb-2.5 text-[36px]">
+              Tudo pronto, {shown}!
+            </h1>
             <p class="text-[15px] text-neutral-800">
               Seu estoque fica guardado neste aparelho e funciona sem internet.
             </p>
