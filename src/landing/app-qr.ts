@@ -33,6 +33,8 @@ export async function bindAppQr(doc: Document, deps: AppQrDeps): Promise<void> {
     const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(deps.url))}`;
     for (const img of doc.querySelectorAll<HTMLImageElement>("[data-app-qr-img]")) {
       img.src = src;
+      // Cartao repetido: so o primeiro descreve o destino; o outro fica decorativo (alt vazio).
+      if (img.getAttribute("alt")) img.alt = `QR code que abre ${label} no celular`;
       img.hidden = false;
     }
   } catch {

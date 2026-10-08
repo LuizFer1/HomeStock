@@ -513,7 +513,7 @@ html[data-installed] [data-open-app] {
   background: var(--color-surface);
 }
 
-html[data-platform="desktop"]:not([data-installed]) .app-qr {
+html[data-platform="desktop"]:not([data-installed]) .app-qr:not([hidden]) {
   display: flex;
 }
 
@@ -531,6 +531,11 @@ html[data-platform="desktop"]:not([data-installed]) .app-qr {
   box-sizing: border-box;
   border-radius: 20px;
   background: #fff;
+}
+
+/* Sem a imagem pronta a placa branca ficaria vazia. */
+.app-qr-plate:has(img[hidden]) {
+  visibility: hidden;
 }
 
 .app-qr-plate img {

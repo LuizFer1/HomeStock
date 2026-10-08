@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { type AppQrDeps, appUrl, bindAppQr } from "./app-qr";
 import { loadLanding } from "./landing-html.fake";
@@ -33,13 +35,24 @@ describe("appUrl", () => {
 });
 
 describe("cartao QR do app", () => {
-  it("existe no hero e em #baixar, com a imagem oculta e alt util", () => {
+  it("existe no hero e em #baixar, com a imagem oculta", () => {
     setup({ platform: "ios" });
     expect(cards()).toHaveLength(2);
-    for (const img of imgs()) {
-      expect(img.hidden).toBe(true);
-      expect(img.getAttribute("alt")).toBe("QR code para abrir o HomeStock no celular");
-    }
+    for (const img of imgs()) expect(img.hidden).toBe(true);
+  });
+
+  it("so a imagem do hero tem alt, com o destino; a de #baixar e decorativa", async () => {
+    setup();
+    await flush();
+    const [hero, baixar] = imgs();
+    expect(hero?.alt).toBe("QR code que abre luizfer1.github.io/HomeStock/app/ no celular");
+    expect(baixar?.getAttribute("alt")).toBe("");
+  });
+
+  it("o CSS que mostra o cartao respeita [hidden]", () => {
+    const css = readFileSync(resolve(import.meta.dirname, "landing.css"), "utf8");
+    const rule = css.match(/html\[data-platform="desktop"\][^{]*\.app-qr[^{]*\{/);
+    expect(rule?.[0]).toContain(":not([hidden])");
   });
 
   it("no computador carrega a lib, gera o QR da URL e mostra a imagem", async () => {
