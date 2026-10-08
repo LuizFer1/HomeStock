@@ -1,6 +1,7 @@
 // Pagina de vitrine: HTML estatico, CSS a mao, TS sem framework. Cada parte se
 // liga aqui; o first paint e o proprio HTML.
 import "./landing.css";
+import { appUrl, bindAppQr } from "./app-qr";
 import { bindCoffee } from "./coffee";
 import { createInstallFlow } from "./install";
 import { bindInstall } from "./install-view";
@@ -36,14 +37,17 @@ if (sim) {
   });
 }
 
+const platform = detectPlatform({
+  userAgent: navigator.userAgent,
+  maxTouchPoints: navigator.maxTouchPoints,
+  coarse: window.matchMedia("(pointer: coarse)").matches,
+});
+const standalone = window.matchMedia("(display-mode: standalone)").matches;
+
 bindInstall(document, {
-  platform: detectPlatform({
-    userAgent: navigator.userAgent,
-    maxTouchPoints: navigator.maxTouchPoints,
-    coarse: window.matchMedia("(pointer: coarse)").matches,
-  }),
+  platform,
   flow: createInstallFlow(),
-  standalone: window.matchMedia("(display-mode: standalone)").matches,
+  standalone,
   win: window,
 });
 
@@ -56,4 +60,12 @@ bindCoffee(document, {
   clipboard: navigator.clipboard,
   setTimeout: (fn, ms) => window.setTimeout(fn, ms),
   clearTimeout: (id) => window.clearTimeout(id),
+});
+
+// QR para abrir o app no celular: so no computador; a lib vira o chunk landing-qr-*.
+void bindAppQr(document, {
+  platform,
+  standalone,
+  url: appUrl(document.baseURI),
+  loadQr: () => import("./landing-qr"),
 });
