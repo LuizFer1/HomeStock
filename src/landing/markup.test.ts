@@ -5,6 +5,8 @@ import { loadLanding, textOf } from "./landing-html.fake";
 
 const REPO = "https://github.com/LuizFer1/HomeStock";
 
+const KOFI = "https://ko-fi.com/fernandodantasdev";
+
 describe("index.html da landing", () => {
   const doc = loadLanding();
 
@@ -26,10 +28,11 @@ describe("index.html da landing", () => {
     expect(scripts).toEqual(["/src/landing/main.ts"]);
   });
 
-  it("nada de rede externa: so links para o repositorio", () => {
+  it("nada de rede externa: so o repositorio e o Ko-fi", () => {
     for (const el of doc.querySelectorAll("[src], [href]")) {
       const url = el.getAttribute("src") ?? el.getAttribute("href") ?? "";
-      if (/^https?:/.test(url)) expect(url.startsWith(REPO), url).toBe(true);
+      if (/^https?:/.test(url))
+        expect(url.startsWith(REPO) || url.startsWith(KOFI), url).toBe(true);
     }
   });
 
@@ -84,8 +87,8 @@ describe("nav", () => {
   });
 
   it("o cafe tem nome mesmo so com icone e o CTA vai para Baixar", () => {
-    const coffee = doc.querySelector("header.top button[data-coffee-open]");
-    expect(coffee?.getAttribute("aria-label")).toBe("Doe um café");
+    const coffee = doc.querySelector("header.top a.top-coffee");
+    expect(coffee?.getAttribute("aria-label")).toBe("Doe um café (abre em nova aba)");
     const cta = doc.querySelector("header.top a.top-cta");
     expect(cta?.getAttribute("href")).toBe("#baixar");
     expect(textOf(cta?.querySelector(".cta-long"))).toBe("Comece grátis");
@@ -245,9 +248,24 @@ describe("baixar", () => {
 describe("faixa do cafe", () => {
   const doc = loadLanding();
 
-  it("titulo e botao que abre o dialogo", () => {
+  it("titulo e link para o Ko-fi", () => {
     expect(textOf(doc.getElementById("cafe-titulo"))).toBe("O HomeStock é gratuito.");
-    expect(textOf(doc.querySelector("section.cafe button[data-coffee-open]"))).toBe("Doe um café");
+    expect(textOf(doc.querySelector("section.cafe a.cafe-btn"))).toMatch(/^Doe um café/);
+  });
+
+  it("os dois controles sao links para o Ko-fi em nova aba", () => {
+    const links = [...doc.querySelectorAll("header.top a.top-coffee, section.cafe a.cafe-btn")];
+    expect(links).toHaveLength(2);
+    for (const a of links) {
+      expect(a.getAttribute("href")).toBe(KOFI);
+      expect(a.getAttribute("target")).toBe("_blank");
+      expect(a.getAttribute("rel")).toContain("noopener");
+    }
+  });
+
+  it("nao sobra Pix nem dialogo de doacao", () => {
+    expect(doc.getElementById("cafe-dialogo")).toBeNull();
+    expect(doc.documentElement.outerHTML).not.toMatch(/pix/i);
   });
 });
 
@@ -296,28 +314,5 @@ describe("dialogo de instalacao", () => {
     const link = dialog?.querySelector("a.btn-secondary");
     expect(textOf(link)).toBe("Usar no navegador");
     expect(link?.getAttribute("href")).toBe("app/");
-  });
-});
-
-describe("dialogo do cafe", () => {
-  const doc = loadLanding();
-  const dialog = doc.querySelector("dialog#cafe-dialogo");
-
-  it("tem nome acessivel valido", () => {
-    const id = dialog?.getAttribute("aria-labelledby");
-    expect(id).toBeTruthy();
-    expect(id && doc.getElementById(id)).not.toBeNull();
-  });
-
-  it("tres radios de valor, o de 5 marcado", () => {
-    const radios = [...(dialog?.querySelectorAll('input[type="radio"][name="cafe-valor"]') ?? [])];
-    expect(radios.map((r) => r.getAttribute("value"))).toEqual(["5", "10", "20"]);
-    expect(radios.map((r) => r.hasAttribute("checked"))).toEqual([true, false, false]);
-    expect(textOf(dialog?.querySelector("fieldset > legend.sr-only"))).toBe("Valor do café");
-  });
-
-  it("botao Fechar e regiao viva", () => {
-    expect(dialog?.querySelector("button[data-dialog-close][aria-label='Fechar']")).not.toBeNull();
-    expect(dialog?.querySelector('.sr-only[aria-live="polite"]')).not.toBeNull();
   });
 });

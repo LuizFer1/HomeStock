@@ -2,11 +2,9 @@
 // liga aqui; o first paint e o proprio HTML.
 import "./landing.css";
 import { appUrl, bindAppQr } from "./app-qr";
-import { bindCoffee } from "./coffee";
 import { createInstallFlow } from "./install";
 import { bindInstall } from "./install-view";
 import { startFloat, startReveal } from "./motion";
-import { PIX } from "./pix-config";
 import { detectPlatform } from "./platform";
 import { bindSharedList } from "./shared-list";
 import { bindSimulation } from "./sim-view";
@@ -49,17 +47,6 @@ bindInstall(document, {
   flow: createInstallFlow(),
   standalone,
   win: window,
-});
-
-bindCoffee(document, {
-  pix: PIX,
-  wantsQr: () =>
-    window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 720px)").matches,
-  // Import dinamico: a lib do QR vira o chunk landing-qr-*.js, baixado so ao abrir no computador.
-  loadQr: () => import("./landing-qr"),
-  clipboard: navigator.clipboard,
-  setTimeout: (fn, ms) => window.setTimeout(fn, ms),
-  clearTimeout: (id) => window.clearTimeout(id),
 });
 
 // QR para abrir o app no celular: so no computador; a lib vira o chunk landing-qr-*.
